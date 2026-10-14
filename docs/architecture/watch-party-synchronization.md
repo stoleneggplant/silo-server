@@ -115,6 +115,16 @@ previous one took, up to 10 seconds. After two sustained stalls within 5
 minutes, the player offers a lower quality for the same source file. Explicit
 room seeks are never delayed by this budget.
 
+The server bounds corrections for every client the same way. A member more
+than 1 second off the room receives a position correction, and while it stays
+out of sync each retry waits twice as long as the previous one: 5, 10, 20, 40,
+then 60 seconds. A player that seeks to the nearest keyframe, as a direct-played
+file does on Apple clients, can land outside that tolerance on every attempt;
+without the backoff it would be seeked every 5 seconds for the rest of the
+title. A report in sync, a new playback session, or a new selection resets the
+backoff, and the attempt count lives in the room runtime. Pause mismatches are
+always retried at the 5-second base interval.
+
 Pausing cancels pending browser reports, and the server ignores delayed
 buffering reports for a paused room. Viewer status identifies who is still
 buffering or syncing. The timeline remains at the requested seek position while

@@ -32,23 +32,24 @@ type roomRuntime struct {
 }
 
 type runtimeMember struct {
-	UserID            int               `json:"user_id"`
-	ProfileID         string            `json:"profile_id"`
-	DisplayName       string            `json:"display_name"`
-	ConnectionID      string            `json:"connection_id"`
-	Connected         bool              `json:"connected"`
-	LeaseUntil        time.Time         `json:"lease_until"`
-	DisconnectedAt    time.Time         `json:"disconnected_at"`
-	SessionID         string            `json:"session_id"`
-	IsReady           bool              `json:"is_ready"`
-	IsBuffering       bool              `json:"is_buffering"`
-	IgnoreWait        bool              `json:"ignore_wait"`
-	LastPingMS        int64             `json:"last_ping_ms"`
-	CorrectionCommand *TransportCommand `json:"correction_command,omitempty"`
-	WaitingCommand    *TransportCommand `json:"waiting_command,omitempty"`
-	SyncingToRoom     bool              `json:"syncing_to_room,omitempty"`
-	LobbyReady        bool              `json:"lobby_ready,omitempty"`
-	LastStallAt       time.Time         `json:"last_stall_at,omitzero"`
+	UserID             int               `json:"user_id"`
+	ProfileID          string            `json:"profile_id"`
+	DisplayName        string            `json:"display_name"`
+	ConnectionID       string            `json:"connection_id"`
+	Connected          bool              `json:"connected"`
+	LeaseUntil         time.Time         `json:"lease_until"`
+	DisconnectedAt     time.Time         `json:"disconnected_at"`
+	SessionID          string            `json:"session_id"`
+	IsReady            bool              `json:"is_ready"`
+	IsBuffering        bool              `json:"is_buffering"`
+	IgnoreWait         bool              `json:"ignore_wait"`
+	LastPingMS         int64             `json:"last_ping_ms"`
+	CorrectionCommand  *TransportCommand `json:"correction_command,omitempty"`
+	CorrectionAttempts int               `json:"correction_attempts,omitempty"`
+	WaitingCommand     *TransportCommand `json:"waiting_command,omitempty"`
+	SyncingToRoom      bool              `json:"syncing_to_room,omitempty"`
+	LobbyReady         bool              `json:"lobby_ready,omitempty"`
+	LastStallAt        time.Time         `json:"last_stall_at,omitzero"`
 }
 
 type roomOperationKey struct{}
@@ -214,8 +215,9 @@ func (s *Service) runtimeLocked(live *liveRoom) roomRuntime {
 			UserID: m.userID, ProfileID: m.profileID, DisplayName: m.displayName, ConnectionID: m.connectionID,
 			Connected: memberConnected(m), LeaseUntil: m.leaseUntil, DisconnectedAt: m.disconnectedAt,
 			SessionID: m.sessionID, IsReady: m.isReady, IsBuffering: m.isBuffering, IgnoreWait: m.ignoreWait,
-			LastPingMS: m.lastPingMS, CorrectionCommand: m.correctionCommand, WaitingCommand: m.waitingCommand,
-			SyncingToRoom: m.syncingToRoom, LobbyReady: m.lobbyReady, LastStallAt: m.lastStallAt,
+			LastPingMS: m.lastPingMS, CorrectionCommand: m.correctionCommand, CorrectionAttempts: m.correctionAttempts,
+			WaitingCommand: m.waitingCommand,
+			SyncingToRoom:  m.syncingToRoom, LobbyReady: m.lobbyReady, LastStallAt: m.lastStallAt,
 		}
 	}
 	return runtime
@@ -243,8 +245,8 @@ func (s *Service) adoptRuntimeLocked(ctx context.Context, live *liveRoom, room R
 			connectionID: stored.ConnectionID, leaseUntil: stored.LeaseUntil, disconnectedAt: stored.DisconnectedAt,
 			sessionID: stored.SessionID, isReady: stored.IsReady, isBuffering: stored.IsBuffering,
 			ignoreWait: stored.IgnoreWait, lastPingMS: stored.LastPingMS, waitingCommand: stored.WaitingCommand,
-			correctionCommand: stored.CorrectionCommand,
-			remoteConnected:   stored.Connected, syncingToRoom: stored.SyncingToRoom, lobbyReady: stored.LobbyReady,
+			correctionCommand: stored.CorrectionCommand, correctionAttempts: stored.CorrectionAttempts,
+			remoteConnected: stored.Connected, syncingToRoom: stored.SyncingToRoom, lobbyReady: stored.LobbyReady,
 			lastStallAt: stored.LastStallAt,
 		}
 		if old := live.members[key]; old != nil && old.connectionID == stored.ConnectionID && stored.Connected {

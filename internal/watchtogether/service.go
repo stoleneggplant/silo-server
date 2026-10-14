@@ -66,6 +66,12 @@ const (
 	// applied. A later report retries the correction if the guest remains out of
 	// sync after this bounded interval.
 	guestCorrectionRetryInterval = 5 * time.Second
+	// maxGuestCorrectionRetryInterval caps the backoff between position
+	// corrections that do not bring a member back in sync. A player that seeks
+	// to the nearest keyframe, as a direct-played file does on Apple clients,
+	// can land outside the drift tolerance every time; without a backoff it
+	// would be told to seek again every guestCorrectionRetryInterval.
+	maxGuestCorrectionRetryInterval = time.Minute
 	// maxBufferingAnchorDriftSeconds bounds how far a buffering member's
 	// reported position may move the shared room anchor.
 	maxBufferingAnchorDriftSeconds = 5.0
@@ -223,6 +229,10 @@ type memberState struct {
 	// this member. It is persisted with the room runtime so another API server
 	// does not immediately resend the same correction.
 	correctionCommand *TransportCommand
+	// correctionAttempts counts position corrections sent since this member
+	// last reported a position in sync with the room. Each one doubles the
+	// wait before the next, up to maxGuestCorrectionRetryInterval.
+	correctionAttempts int
 	// waitingCommand is the command this member must finish before resuming.
 	waitingCommand *TransportCommand
 	// ignoreWait marks a member who is catching up on their own: they are
@@ -260,6 +270,7 @@ func (m *memberState) resetForSelection() {
 	m.lastStallAt = time.Time{}
 	m.waitingCommand = nil
 	m.correctionCommand = nil
+	m.correctionAttempts = 0
 	m.lastCommandID = ""
 	m.syncingToRoom = false
 	m.lobbyReady = false
@@ -642,6 +653,7 @@ func (s *Service) attachSessionForConnection(
 		member.isReady = false
 		member.isBuffering = live.room.Phase == RoomPhasePlaying && live.room.PlaybackState == RoomPlaybackStateWaiting
 		member.syncingToRoom = false
+		member.correctionAttempts = 0
 	}
 
 	var commandDispatches []commandDispatch
@@ -926,12 +938,22 @@ func (s *Service) handleStateReportForConnection(
 			IssuedAt:        now.UTC().Format(time.RFC3339Nano),
 			PlaybackState:   live.room.PlaybackState,
 		}
-		if !correctionCommandPending(member, command, now) {
+		// A pause mismatch is always retried at the base interval; only
+		// position corrections that keep missing back off.
+		retryInterval := guestCorrectionRetryInterval
+		if !pauseMismatch {
+			retryInterval = correctionRetryInterval(member.correctionAttempts)
+		}
+		if !correctionCommandPending(member, command, now, retryInterval) {
 			member.correctionCommand = &command
+			if !pauseMismatch {
+				member.correctionAttempts++
+			}
 			correctionDispatches = s.targetedCommandDispatchesLocked(live, report.SessionID, command)
 		}
 	} else {
 		member.correctionCommand = nil
+		member.correctionAttempts = 0
 	}
 	if caughtUp && dispatches == nil {
 		dispatches = s.prepareSnapshotDispatchesLocked(live)
@@ -2309,7 +2331,17 @@ func memberCommandLogAttrs(roomID string, userID int, dispatch commandDispatch) 
 	}
 }
 
-func correctionCommandPending(member *memberState, command TransportCommand, now time.Time) bool {
+// correctionRetryInterval is how long a member's position correction stays
+// pending after attempts corrections that have not brought it back in sync.
+func correctionRetryInterval(attempts int) time.Duration {
+	interval := guestCorrectionRetryInterval
+	for i := 1; i < attempts && interval < maxGuestCorrectionRetryInterval; i++ {
+		interval *= 2
+	}
+	return min(interval, maxGuestCorrectionRetryInterval)
+}
+
+func correctionCommandPending(member *memberState, command TransportCommand, now time.Time, retryInterval time.Duration) bool {
 	if member == nil || member.correctionCommand == nil {
 		return false
 	}
@@ -2325,13 +2357,13 @@ func correctionCommandPending(member *memberState, command TransportCommand, now
 		return false
 	}
 	age := now.Sub(issuedAt)
-	if age < -guestCorrectionRetryInterval {
+	if age < -retryInterval {
 		return false
 	}
 	if age < 0 {
 		age = 0
 	}
-	return age < guestCorrectionRetryInterval
+	return age < retryInterval
 }
 
 func (s *Service) runCommandDispatches(dispatches []commandDispatch) {

@@ -433,6 +433,73 @@ func TestGuestDriftCorrectionIsCoalescedAndRearmed(t *testing.T) {
 	}
 }
 
+// A player that seeks to the nearest keyframe, as a direct-played file does
+// on Apple clients, can land outside the drift tolerance after every
+// correction. Repeated misses must back off instead of seeking the viewer
+// every few seconds, and a report in sync must restore the base interval.
+func TestGuestDriftCorrectionBacksOffWhileOutOfSync(t *testing.T) {
+	now := time.Date(2026, 4, 9, 12, 0, 20, 0, time.UTC)
+	current := now
+	repo := &stubRepo{room: baseRoom(now)}
+	conn := &recordingConn{}
+	service := newServiceForTest(
+		now,
+		repo,
+		&stubSessions{},
+		&stubFiles{file: &models.MediaFile{ID: 42, ContentID: "movie-1"}},
+		nil,
+	)
+	service.now = func() time.Time { return current }
+	service.rooms[repo.room.ID].members[buildMemberKey(8, "guest")] = &memberState{
+		userID:     8,
+		profileID:  "guest",
+		sessionID:  "session-1",
+		connection: conn,
+	}
+	reg := registrationFor(repo.room.ID, 8, "guest", conn)
+	reportOffBy := func(seconds float64) {
+		t.Helper()
+		report := StateReport{SessionID: "session-1", PositionSeconds: expectedPosition(repo.room, current) - seconds}
+		if _, err := service.HandleStateReportForConnection(t.Context(), reg, 8, "guest", report); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	reportOffBy(1.5)
+	if got := transportCount(conn); got != 1 {
+		t.Fatalf("first drift report dispatched %d corrections, want 1", got)
+	}
+	sent := 1
+	for _, wait := range []time.Duration{
+		5 * time.Second, 10 * time.Second, 20 * time.Second, 40 * time.Second, time.Minute, time.Minute,
+	} {
+		current = current.Add(wait - time.Millisecond)
+		reportOffBy(1.5)
+		if got := transportCount(conn); got != sent {
+			t.Fatalf("correction resent %v after the previous one, before its %v backoff", wait-time.Millisecond, wait)
+		}
+		current = current.Add(time.Millisecond)
+		reportOffBy(1.5)
+		sent++
+		if got := transportCount(conn); got != sent {
+			t.Fatalf("correction not resent after its %v backoff: got %d corrections, want %d", wait, got, sent)
+		}
+	}
+
+	reportOffBy(0)
+	reportOffBy(1.5)
+	sent++
+	if got := transportCount(conn); got != sent {
+		t.Fatalf("in-sync report did not re-arm correction: got %d corrections, want %d", got, sent)
+	}
+	current = current.Add(guestCorrectionRetryInterval)
+	reportOffBy(1.5)
+	sent++
+	if got := transportCount(conn); got != sent {
+		t.Fatalf("in-sync report did not restore the base retry interval: got %d corrections, want %d", got, sent)
+	}
+}
+
 // transportCount counts the transport commands a connection received,
 // ignoring snapshots.
 func transportCount(conn *recordingConn) int {
@@ -462,12 +529,13 @@ func TestCorrectionCommandRoundTripsRoomRuntime(t *testing.T) {
 	key := buildMemberKey(8, "guest")
 	live := service.rooms[repo.room.ID]
 	live.members[key] = &memberState{
-		userID:            8,
-		profileID:         "guest",
-		sessionID:         command.SessionID,
-		correctionCommand: command,
-		syncingToRoom:     true,
-		lobbyReady:        true,
+		userID:             8,
+		profileID:          "guest",
+		sessionID:          command.SessionID,
+		correctionCommand:  command,
+		correctionAttempts: 3,
+		syncingToRoom:      true,
+		lobbyReady:         true,
 	}
 
 	encoded, err := json.Marshal(service.runtimeLocked(live))
@@ -494,11 +562,15 @@ func TestCorrectionCommandRoundTripsRoomRuntime(t *testing.T) {
 	if !adopted.members[key].syncingToRoom || !adopted.members[key].lobbyReady {
 		t.Fatal("runtime adoption dropped syncing or lobby readiness")
 	}
+	if got := adopted.members[key].correctionAttempts; got != 3 {
+		t.Fatalf("adopted correction attempts = %d, want 3", got)
+	}
 
 	nextRoom := repo.room
 	nextRoom.SelectionRevision++
 	service.adoptRuntimeLocked(t.Context(), adopted, nextRoom, state)
-	if member := adopted.members[key]; member.correctionCommand != nil || member.syncingToRoom || member.lobbyReady {
+	if member := adopted.members[key]; member.correctionCommand != nil || member.correctionAttempts != 0 ||
+		member.syncingToRoom || member.lobbyReady {
 		t.Fatalf("previous epoch state survived runtime adoption: %+v", member)
 	}
 }
@@ -524,7 +596,7 @@ func TestCorrectionCommandPendingAllowsBoundedFutureClockSkew(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			member.correctionCommand.IssuedAt = test.issuedAt.Format(time.RFC3339Nano)
-			if got := correctionCommandPending(member, command, now); got != test.wantMatch {
+			if got := correctionCommandPending(member, command, now, guestCorrectionRetryInterval); got != test.wantMatch {
 				t.Fatalf("correctionCommandPending() = %t, want %t", got, test.wantMatch)
 			}
 		})
