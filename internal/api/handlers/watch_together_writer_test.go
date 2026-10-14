@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -89,7 +90,7 @@ func TestWatchTogetherSlowWriterDoesNotBlockOtherViewers(t *testing.T) {
 func TestWatchTogetherMemberStatusIsV2Only(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
-	snapshot := watchtogether.Snapshot{RoomID: "room", Members: []watchtogether.MemberSummary{
+	snapshot := watchtogether.Snapshot{RoomID: "room", AnchorPositionAt: "2026-10-14T12:00:00.5Z", Members: []watchtogether.MemberSummary{
 		{UserID: 7, ProfileID: "host", Connected: true, IsReady: true, IsBuffering: true, IsSyncing: true, LobbyReady: true},
 		{UserID: 8, ProfileID: "guest", Connected: true},
 	}}
@@ -107,6 +108,9 @@ func TestWatchTogetherMemberStatusIsV2Only(t *testing.T) {
 		}
 		if payload.Room.RoomID != "room" || len(payload.Room.Members) != 2 || payload.Room.Members[0]["connected"] != true {
 			t.Fatalf("existing snapshot fields changed: %s", data)
+		}
+		if got := bytes.Contains(data, []byte(`"anchor_position_at":"2026-10-14T12:00:00.5Z"`)); got != wantStatus {
+			t.Fatalf("anchor_position_at present = %v, want %v: %s", got, wantStatus, data)
 		}
 		for _, key := range []string{"is_ready", "is_buffering", "is_syncing"} {
 			value, present := payload.Room.Members[0][key]
@@ -175,6 +179,22 @@ func TestWatchTogetherV1RejectsLobbyReady(t *testing.T) {
 		if err == nil || err.Error() != "unsupported room websocket message" {
 			t.Fatalf("v1 lobby_ready error = %v", err)
 		}
+	}
+}
+
+func TestWatchTogetherV1RejectsSyncToRoom(t *testing.T) {
+	h := new(WatchTogetherHandler)
+	err := h.handleRoomClientMessage(t.Context(), new(watchTogetherRoomConn), nil, 7, "profile", []byte(`{"type":"sync_to_room","session_id":"s"}`))
+	if err == nil || err.Error() != "unsupported room websocket message" {
+		t.Fatalf("v1 sync_to_room error = %v", err)
+	}
+}
+
+func TestWatchTogetherSyncToRoomRequiresSession(t *testing.T) {
+	h := new(WatchTogetherHandler)
+	err := h.handleRoomClientMessage(t.Context(), &watchTogetherRoomConn{includeMemberStatus: true}, nil, 7, "profile", []byte(`{"type":"sync_to_room"}`))
+	if err == nil || err.Error() != "session_id is required" {
+		t.Fatalf("sync_to_room without a session error = %v", err)
 	}
 }
 

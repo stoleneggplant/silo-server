@@ -55,7 +55,7 @@ func TestSourceFallbackGuestPreservesAnchorAndFencesStaleReports(t *testing.T) {
 		if profile == "guest" {
 			user = 8
 		}
-		live.members[buildMemberKey(user, profile)] = &memberState{userID: user, profileID: profile, connection: &recordingConn{}, sessionID: profile, isReady: true, waitingCommand: &TransportCommand{CommandID: "old"}, correctionCommand: &TransportCommand{CommandID: "old-correction"}}
+		live.members[buildMemberKey(user, profile)] = &memberState{userID: user, profileID: profile, connection: &recordingConn{}, sessionID: profile, isReady: true, waitingCommand: &TransportCommand{CommandID: "old"}}
 	}
 	input := SourceFallbackInput{SelectionRevision: room.SelectionRevision, FailedFileID: 1, Reason: "no_alternate_version"}
 	if _, err := svc.FallbackSource(t.Context(), room.ID, 9, "outsider", input); !errors.Is(err, ErrRoomForbidden) {
@@ -66,7 +66,7 @@ func TestSourceFallbackGuestPreservesAnchorAndFencesStaleReports(t *testing.T) {
 		t.Fatalf("guest fallback = %+v, %v", got, err)
 	}
 	for _, member := range live.members {
-		if member.sessionID != "" || member.isReady || member.waitingCommand != nil || member.correctionCommand != nil {
+		if member.sessionID != "" || member.isReady || member.waitingCommand != nil {
 			t.Fatalf("old attachment survived: %+v", member)
 		}
 	}

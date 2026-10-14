@@ -55,6 +55,12 @@ export interface WatchTogetherRoomSnapshot {
   is_paused: boolean;
   anchor_position_seconds: number;
   anchor_updated_at: string;
+  /**
+   * Server instant that `anchor_position_seconds` describes. Present on
+   * servers whose room clock never corrects members (`live_clock`); absent on
+   * older servers.
+   */
+  anchor_position_at?: string;
   generation: number;
   member_count: number;
   host_connected: boolean;
@@ -66,6 +72,23 @@ export interface WatchTogetherRoomSnapshot {
   invite_path?: string;
   /** Optional additive field; absent on older servers. Host is listed first. */
   members?: WatchTogetherRoomMember[];
+}
+
+/**
+ * The room's live position in media seconds at `nowMs` (local wall clock), or
+ * null when the room is not playing or the server does not publish its clock.
+ * `serverTimeOffsetMs` is server time minus local time.
+ */
+export function roomLivePositionSeconds(
+  room: WatchTogetherRoomSnapshot | null,
+  nowMs: number,
+  serverTimeOffsetMs: number,
+): number | null {
+  if (!room || room.phase !== "playing" || room.playback_state !== "playing") return null;
+  const positionAtMs = room.anchor_position_at ? Date.parse(room.anchor_position_at) : NaN;
+  if (!Number.isFinite(positionAtMs)) return null;
+  const elapsedSeconds = Math.max(0, (nowMs + serverTimeOffsetMs - positionAtMs) / 1000);
+  return Math.max(0, room.anchor_position_seconds + elapsedSeconds);
 }
 
 export interface WatchTogetherTransportCommand {

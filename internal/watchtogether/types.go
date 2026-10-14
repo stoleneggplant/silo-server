@@ -91,29 +91,34 @@ type MemberSummary struct {
 }
 
 type Snapshot struct {
-	RoomID                  string             `json:"room_id"`
-	Phase                   RoomPhase          `json:"phase"`
-	PlaybackState           RoomPlaybackState  `json:"playback_state"`
-	SelectionMode           RoomSelectionMode  `json:"selection_mode"`
-	SelectionRevision       int64              `json:"selection_revision"`
-	SelectedContentID       *string            `json:"selected_content_id,omitempty"`
-	SelectedFileID          *int               `json:"selected_file_id,omitempty"`
-	SelectedLibraryID       *int               `json:"selected_library_id,omitempty"`
-	Code                    string             `json:"code"`
-	GuestControlPolicy      GuestControlPolicy `json:"guest_control_policy"`
-	IsPaused                bool               `json:"is_paused"`
-	AnchorPositionSeconds   float64            `json:"anchor_position_seconds"`
-	AnchorUpdatedAt         string             `json:"anchor_updated_at"`
-	Generation              int64              `json:"generation"`
-	MemberCount             int                `json:"member_count"`
-	HostConnected           bool               `json:"host_connected"`
-	SelfRole                MemberRole         `json:"self_role"`
-	SelfCanControlTransport bool               `json:"self_can_control_transport"`
-	SelfCanManageRoom       bool               `json:"self_can_manage_room"`
-	SelfIgnoreWait          bool               `json:"self_ignore_wait"`
-	AttachedSessionID       string             `json:"attached_session_id,omitempty"`
-	InvitePath              string             `json:"invite_path,omitempty"`
-	Members                 []MemberSummary    `json:"members,omitempty"`
+	RoomID                string             `json:"room_id"`
+	Phase                 RoomPhase          `json:"phase"`
+	PlaybackState         RoomPlaybackState  `json:"playback_state"`
+	SelectionMode         RoomSelectionMode  `json:"selection_mode"`
+	SelectionRevision     int64              `json:"selection_revision"`
+	SelectedContentID     *string            `json:"selected_content_id,omitempty"`
+	SelectedFileID        *int               `json:"selected_file_id,omitempty"`
+	SelectedLibraryID     *int               `json:"selected_library_id,omitempty"`
+	Code                  string             `json:"code"`
+	GuestControlPolicy    GuestControlPolicy `json:"guest_control_policy"`
+	IsPaused              bool               `json:"is_paused"`
+	AnchorPositionSeconds float64            `json:"anchor_position_seconds"`
+	AnchorUpdatedAt       string             `json:"anchor_updated_at"`
+	// AnchorPositionAt is the instant AnchorPositionSeconds describes, on the
+	// server clock. While the room plays, its position at time t is
+	// AnchorPositionSeconds + max(0, t - AnchorPositionAt): the room's live
+	// edge, which a member behind it can rejoin with sync_to_room.
+	AnchorPositionAt        string          `json:"anchor_position_at,omitempty"`
+	Generation              int64           `json:"generation"`
+	MemberCount             int             `json:"member_count"`
+	HostConnected           bool            `json:"host_connected"`
+	SelfRole                MemberRole      `json:"self_role"`
+	SelfCanControlTransport bool            `json:"self_can_control_transport"`
+	SelfCanManageRoom       bool            `json:"self_can_manage_room"`
+	SelfIgnoreWait          bool            `json:"self_ignore_wait"`
+	AttachedSessionID       string          `json:"attached_session_id,omitempty"`
+	InvitePath              string          `json:"invite_path,omitempty"`
+	Members                 []MemberSummary `json:"members,omitempty"`
 }
 
 type RoomJoinResult struct {

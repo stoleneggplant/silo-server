@@ -53,27 +53,30 @@ Transitions:
 A member who attaches a session to a room that is already playing is sent a
 targeted transport command with the room's current position. The stream they
 just opened starts at the file's beginning, so until that command lands their
-periodic state reports describe the wrong place. For a guest that is harmless:
-guest reports only ever trigger corrections toward the room. For the host it
-is not: host reports move the anchor, and a report of "position 0" arriving
-before the seek would rewind everyone.
+periodic state reports describe the wrong place. A member who fell behind and
+sends `sync_to_room` gets the same targeted command and the same window.
 
-`memberState.syncingToRoom` covers that window. It is set on attach when the
-sync command is issued and cleared by a state report that already matches the room, or by any transport request from
-that member (an explicit action is intent, not a stale position). While it is
-set, a host's reports are treated like a guest's: corrected, never
-authoritative. The flag is persisted with the shared room runtime.
+No state report moves the room's clock or triggers a correction; see
+[Room clock](watch-party-synchronization.md#room-clock). The one decision a
+report carries is the host pausing or resuming from the system controls, and a
+syncing host's stale "paused" report must not pause everyone.
+`memberState.syncingToRoom` covers that window. It is set when the sync command
+is issued and cleared by a state report that already matches the room, or by
+any transport request from that member (an explicit action is intent, not a
+stale position). While it is set, a host's pause state is ignored. The flag is
+persisted with the shared room runtime.
 
-An authoritative host report that changes the pause state is a transport
-decision, such as a pause from the system controls that never became a
-transport request. It moves `Room.PlaybackState` (`playing`/`paused`) and
-`Room.ResumeOnReady` together with `Room.IsPaused`, the same way a play or
-pause request does. Guest corrections, re-attach syncs, and buffering barriers
-choose play or pause from those two fields; a report that updates only `IsPaused`
-would leave a paused room telling members to play. Any authoritative host report
-is also issued as the room's transport command, as a request would be: members
-on other API servers receive it through the reconciler, and an earlier command
-cannot be replayed to a member whose socket renews before it re-attaches.
+A host report that changes the pause state is a transport decision, such as a
+pause from the system controls that never became a transport request. It
+pauses or resumes the room at the room's own position and moves
+`Room.PlaybackState` (`playing`/`paused`) and `Room.ResumeOnReady` together
+with `Room.IsPaused`, the same way a play or pause request does. Syncs and
+buffering barriers choose play or pause from those two fields; a report that
+updates only `IsPaused` would leave a paused room telling members to play. The
+decision is also issued as the room's transport command, as a request would be:
+members on other API servers receive it through the reconciler, and an earlier
+command cannot be replayed to a member whose socket renews before it
+re-attaches.
 
 ## Two counters
 
@@ -98,16 +101,16 @@ switch mode) without any client thinking playback restarted.
 |---|---|---|---|
 | `memberState.lobbyReady` (`members[].lobby_ready`) | shared room runtime | socket `lobby_ready` message, lobby only | stage with different content, start, stop, mode switch |
 | `memberState.isReady` | shared room runtime | socket `ready` message, or a `state_report` with `is_ready`, with an attached session, playing only | any selection change, buffering, disconnect |
-| `memberState.ignoreWait` | shared room runtime | the waiting deadline (`waitingResumeDeadline`) skipping a straggler | attach, ready |
+| `memberState.ignoreWait` | shared room runtime | the waiting deadline (`waitingResumeDeadline`) skipping a straggler, or a stall while others watch | attach, ready |
 
 Lobby ready is advisory. The server never gates start on it; the web shows
 the connected guest count on the start button and offers the same call as
 "start anyway". Vote rooms start through promotion without this ready check.
 The buffering barrier (`isReady`, `ignoreWait`) is the one that actually holds
 playback until members have buffered. Guests must reach a seek destination
-within one second; the host is accepted within fifteen and re-anchors the room
-to their real position, since a rebuilt stream lands on a keyframe or segment
-boundary. The waiting deadline (`waitingResumeDeadline`, 10 s) is a safety net
+within one second; the host is accepted within fifteen, since a rebuilt stream
+lands on a keyframe or segment boundary, but the room still resumes from the
+destination and a host who landed short is behind it. The waiting deadline (`waitingResumeDeadline`, 10 s) is a safety net
 for a member that never reports, not the normal way out of the barrier.
 
 ## What crosses nodes

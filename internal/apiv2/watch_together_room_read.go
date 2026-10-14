@@ -43,6 +43,7 @@ type WatchTogetherRoomSnapshot struct {
 	IsPaused                bool                             `json:"is_paused"`
 	AnchorPositionSeconds   float64                          `json:"anchor_position_seconds"`
 	AnchorUpdatedAt         Instant                          `json:"anchor_updated_at"`
+	AnchorPositionAt        *Instant                         `json:"anchor_position_at,omitempty" doc:"Server instant that anchor_position_seconds describes. While playing, the room's live position at time t is anchor_position_seconds + max(0, t - anchor_position_at)."`
 	Generation              int64                            `json:"generation"`
 	MemberCount             int                              `json:"member_count"`
 	HostConnected           bool                             `json:"host_connected"`
@@ -95,6 +96,13 @@ func watchTogetherRoomSnapshotOf(row watchtogether.Snapshot) (WatchTogetherRoomS
 		SelfIgnoreWait:          row.SelfIgnoreWait,
 		AttachedSessionID:       row.AttachedSessionID,
 		InvitePath:              row.InvitePath,
+	}
+	if row.AnchorPositionAt != "" {
+		at, err := time.Parse(time.RFC3339Nano, row.AnchorPositionAt)
+		if err != nil {
+			return WatchTogetherRoomSnapshot{}, err
+		}
+		out.AnchorPositionAt = new(NewInstant(at))
 	}
 	if row.SelectedContentID != nil {
 		out.SelectedContentID = new(ID(*row.SelectedContentID))

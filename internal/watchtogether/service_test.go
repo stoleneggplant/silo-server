@@ -368,138 +368,6 @@ func TestGuestPlayPausePolicyStillRejectsGuestSeek(t *testing.T) {
 	}
 }
 
-func TestGuestDriftCorrectionIsCoalescedAndRearmed(t *testing.T) {
-	now := time.Date(2026, 4, 9, 12, 0, 20, 0, time.UTC)
-	current := now
-	repo := &stubRepo{room: baseRoom(now)}
-	conn := &recordingConn{}
-	service := newServiceForTest(
-		now,
-		repo,
-		&stubSessions{session: &playback.Session{
-			ID:          "session-1",
-			UserID:      8,
-			ProfileID:   "guest",
-			MediaFileID: 42,
-		}},
-		&stubFiles{file: &models.MediaFile{ID: 42, ContentID: "movie-1"}},
-		nil,
-	)
-	service.now = func() time.Time { return current }
-	service.rooms[repo.room.ID].members[buildMemberKey(8, "guest")] = &memberState{
-		userID:     8,
-		profileID:  "guest",
-		sessionID:  "session-1",
-		connection: conn,
-	}
-
-	reg := registrationFor(repo.room.ID, 8, "guest", conn)
-	report := StateReport{SessionID: "session-1", PositionSeconds: 2}
-	if _, err := service.HandleStateReportForConnection(t.Context(), reg, 8, "guest", report); err != nil {
-		t.Fatal(err)
-	}
-	first := lastTransport(t, conn)
-	if _, err := service.HandleStateReportForConnection(t.Context(), reg, 8, "guest", report); err != nil {
-		t.Fatal(err)
-	}
-	if got := transportCount(conn); got != 1 {
-		t.Fatalf("repeated drift report dispatched %d corrections, want 1", got)
-	}
-
-	current = current.Add(guestCorrectionRetryInterval)
-	if _, err := service.HandleStateReportForConnection(t.Context(), reg, 8, "guest", report); err != nil {
-		t.Fatal(err)
-	}
-	second := lastTransport(t, conn)
-	if got := transportCount(conn); got != 2 {
-		t.Fatalf("expired correction dispatched %d corrections, want 2", got)
-	}
-	if second.CommandID == first.CommandID {
-		t.Fatalf("retry reused command ID %q", second.CommandID)
-	}
-
-	expected := expectedPosition(repo.room, current)
-	if _, err := service.HandleStateReportForConnection(t.Context(), reg, 8, "guest", StateReport{
-		SessionID:       "session-1",
-		PositionSeconds: expected,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := service.HandleStateReportForConnection(t.Context(), reg, 8, "guest", report); err != nil {
-		t.Fatal(err)
-	}
-	if got := transportCount(conn); got != 3 {
-		t.Fatalf("in-sync report did not re-arm correction, got %d corrections, want 3", got)
-	}
-}
-
-// A player that seeks to the nearest keyframe, as a direct-played file does
-// on Apple clients, can land outside the drift tolerance after every
-// correction. Repeated misses must back off instead of seeking the viewer
-// every few seconds, and a report in sync must restore the base interval.
-func TestGuestDriftCorrectionBacksOffWhileOutOfSync(t *testing.T) {
-	now := time.Date(2026, 4, 9, 12, 0, 20, 0, time.UTC)
-	current := now
-	repo := &stubRepo{room: baseRoom(now)}
-	conn := &recordingConn{}
-	service := newServiceForTest(
-		now,
-		repo,
-		&stubSessions{},
-		&stubFiles{file: &models.MediaFile{ID: 42, ContentID: "movie-1"}},
-		nil,
-	)
-	service.now = func() time.Time { return current }
-	service.rooms[repo.room.ID].members[buildMemberKey(8, "guest")] = &memberState{
-		userID:     8,
-		profileID:  "guest",
-		sessionID:  "session-1",
-		connection: conn,
-	}
-	reg := registrationFor(repo.room.ID, 8, "guest", conn)
-	reportOffBy := func(seconds float64) {
-		t.Helper()
-		report := StateReport{SessionID: "session-1", PositionSeconds: expectedPosition(repo.room, current) - seconds}
-		if _, err := service.HandleStateReportForConnection(t.Context(), reg, 8, "guest", report); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	reportOffBy(1.5)
-	if got := transportCount(conn); got != 1 {
-		t.Fatalf("first drift report dispatched %d corrections, want 1", got)
-	}
-	sent := 1
-	for _, wait := range []time.Duration{
-		5 * time.Second, 10 * time.Second, 20 * time.Second, 40 * time.Second, time.Minute, time.Minute,
-	} {
-		current = current.Add(wait - time.Millisecond)
-		reportOffBy(1.5)
-		if got := transportCount(conn); got != sent {
-			t.Fatalf("correction resent %v after the previous one, before its %v backoff", wait-time.Millisecond, wait)
-		}
-		current = current.Add(time.Millisecond)
-		reportOffBy(1.5)
-		sent++
-		if got := transportCount(conn); got != sent {
-			t.Fatalf("correction not resent after its %v backoff: got %d corrections, want %d", wait, got, sent)
-		}
-	}
-
-	reportOffBy(0)
-	reportOffBy(1.5)
-	sent++
-	if got := transportCount(conn); got != sent {
-		t.Fatalf("in-sync report did not re-arm correction: got %d corrections, want %d", got, sent)
-	}
-	current = current.Add(guestCorrectionRetryInterval)
-	reportOffBy(1.5)
-	sent++
-	if got := transportCount(conn); got != sent {
-		t.Fatalf("in-sync report did not restore the base retry interval: got %d corrections, want %d", got, sent)
-	}
-}
-
 // transportCount counts the transport commands a connection received,
 // ignoring snapshots.
 func transportCount(conn *recordingConn) int {
@@ -512,12 +380,12 @@ func transportCount(conn *recordingConn) int {
 	return count
 }
 
-func TestCorrectionCommandRoundTripsRoomRuntime(t *testing.T) {
+func TestWaitingCommandRoundTripsRoomRuntime(t *testing.T) {
 	now := time.Date(2026, 4, 9, 12, 0, 20, 0, time.UTC)
 	repo := &stubRepo{room: baseRoom(now)}
 	service := newServiceForTest(now, repo, &stubSessions{}, &stubFiles{}, nil)
 	command := &TransportCommand{
-		CommandID:         "correction-1",
+		CommandID:         "barrier-1",
 		SessionID:         "session-1",
 		SelectionRevision: repo.room.SelectionRevision,
 		Action:            TransportActionPlay,
@@ -529,13 +397,12 @@ func TestCorrectionCommandRoundTripsRoomRuntime(t *testing.T) {
 	key := buildMemberKey(8, "guest")
 	live := service.rooms[repo.room.ID]
 	live.members[key] = &memberState{
-		userID:             8,
-		profileID:          "guest",
-		sessionID:          command.SessionID,
-		correctionCommand:  command,
-		correctionAttempts: 3,
-		syncingToRoom:      true,
-		lobbyReady:         true,
+		userID:         8,
+		profileID:      "guest",
+		sessionID:      command.SessionID,
+		waitingCommand: command,
+		syncingToRoom:  true,
+		lobbyReady:     true,
 	}
 
 	encoded, err := json.Marshal(service.runtimeLocked(live))
@@ -546,63 +413,30 @@ func TestCorrectionCommandRoundTripsRoomRuntime(t *testing.T) {
 	if err := json.Unmarshal(encoded, &state); err != nil {
 		t.Fatal(err)
 	}
-	if state.Members[key].CorrectionCommand == nil {
-		t.Fatal("correction command was omitted from room runtime")
+	if state.Members[key].WaitingCommand == nil {
+		t.Fatal("waiting command was omitted from room runtime")
 	}
 	if !state.Members[key].SyncingToRoom || !state.Members[key].LobbyReady {
-		t.Fatal("correction persistence dropped the other member runtime fields")
+		t.Fatal("runtime persistence dropped the other member fields")
 	}
 
 	adopted := &liveRoom{members: make(map[string]*memberState)}
 	service.adoptRuntimeLocked(t.Context(), adopted, repo.room, state)
-	got := adopted.members[key].correctionCommand
+	got := adopted.members[key].waitingCommand
 	if got == nil || got.CommandID != command.CommandID || got.SessionID != command.SessionID {
-		t.Fatalf("adopted correction command = %+v, want %+v", got, command)
+		t.Fatalf("adopted waiting command = %+v, want %+v", got, command)
 	}
 	if !adopted.members[key].syncingToRoom || !adopted.members[key].lobbyReady {
 		t.Fatal("runtime adoption dropped syncing or lobby readiness")
-	}
-	if got := adopted.members[key].correctionAttempts; got != 3 {
-		t.Fatalf("adopted correction attempts = %d, want 3", got)
 	}
 
 	nextRoom := repo.room
 	nextRoom.SelectionRevision++
 	service.adoptRuntimeLocked(t.Context(), adopted, nextRoom, state)
-	if member := adopted.members[key]; member.correctionCommand != nil || member.correctionAttempts != 0 ||
-		member.syncingToRoom || member.lobbyReady {
+	if member := adopted.members[key]; member.waitingCommand != nil || member.syncingToRoom || member.lobbyReady {
 		t.Fatalf("previous epoch state survived runtime adoption: %+v", member)
 	}
 }
-
-func TestCorrectionCommandPendingAllowsBoundedFutureClockSkew(t *testing.T) {
-	now := time.Date(2026, 4, 9, 12, 0, 20, 0, time.UTC)
-	command := TransportCommand{
-		SessionID:         "session-1",
-		SelectionRevision: 1,
-		Action:            TransportActionPlay,
-		PlaybackState:     RoomPlaybackStatePlaying,
-	}
-	member := &memberState{correctionCommand: &command}
-
-	for _, test := range []struct {
-		name      string
-		issuedAt  time.Time
-		wantMatch bool
-	}{
-		{name: "small future skew", issuedAt: now.Add(time.Second), wantMatch: true},
-		{name: "retry interval elapsed", issuedAt: now.Add(-guestCorrectionRetryInterval), wantMatch: false},
-		{name: "excessive future skew", issuedAt: now.Add(guestCorrectionRetryInterval + time.Millisecond), wantMatch: false},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			member.correctionCommand.IssuedAt = test.issuedAt.Format(time.RFC3339Nano)
-			if got := correctionCommandPending(member, command, now, guestCorrectionRetryInterval); got != test.wantMatch {
-				t.Fatalf("correctionCommandPending() = %t, want %t", got, test.wantMatch)
-			}
-		})
-	}
-}
-
 func TestStateReportsPreservePendingSeek(t *testing.T) {
 	for _, seekPaused := range []bool{false, true} {
 		name := "playing"
@@ -1171,26 +1005,13 @@ func TestStaleLiveConflictAdoptsDatabaseRow(t *testing.T) {
 	}
 }
 
-func TestStateReportConflictClearsStaleCorrectionCommands(t *testing.T) {
+// A host's pause decision that loses a race to a newer row answers with
+// that row instead of the stale write.
+func TestHostPauseReportConflictAdoptsTheWinningRow(t *testing.T) {
 	now := time.Date(2026, 4, 10, 12, 0, 20, 0, time.UTC)
 	repo := &stubRepo{room: baseRoom(now)}
 	service := newServiceForTest(now, repo, &stubSessions{}, &stubFiles{}, nil)
 
-	guestCorrection := &TransportCommand{
-		CommandID:         "stale-correction",
-		SessionID:         "guest-session",
-		SelectionRevision: repo.room.SelectionRevision,
-		Action:            TransportActionPlay,
-		PositionSeconds:   20,
-		IssuedAt:          now.Add(-time.Second).Format(time.RFC3339Nano),
-		PlaybackState:     RoomPlaybackStatePlaying,
-	}
-	service.rooms[repo.room.ID].members[buildMemberKey(8, "guest")] = &memberState{
-		userID:            8,
-		profileID:         "guest",
-		sessionID:         "guest-session",
-		correctionCommand: guestCorrection,
-	}
 	hostConn := &recordingConn{}
 	service.rooms[repo.room.ID].members[buildMemberKey(7, "host")] = &memberState{
 		userID:     7,
@@ -1209,7 +1030,7 @@ func TestStateReportConflictClearsStaleCorrectionCommands(t *testing.T) {
 		registrationFor(repo.room.ID, 7, "host", hostConn),
 		7,
 		"host",
-		StateReport{SessionID: "host-session", PositionSeconds: 30},
+		StateReport{SessionID: "host-session", PositionSeconds: 30, IsPaused: true},
 	)
 	if err != nil {
 		t.Fatalf("HandleStateReportForConnection() error = %v", err)
@@ -1217,9 +1038,6 @@ func TestStateReportConflictClearsStaleCorrectionCommands(t *testing.T) {
 	if snapshot.Generation != repo.room.Generation || snapshot.AnchorPositionSeconds != repo.room.AnchorPositionSeconds {
 		t.Fatalf("snapshot = generation %d, anchor %v; want winning row generation %d, anchor %v",
 			snapshot.Generation, snapshot.AnchorPositionSeconds, repo.room.Generation, repo.room.AnchorPositionSeconds)
-	}
-	if service.rooms[repo.room.ID].members[buildMemberKey(8, "guest")].correctionCommand != nil {
-		t.Fatal("stale guest correction survived a conflicting host anchor update")
 	}
 }
 
@@ -1369,8 +1187,8 @@ func TestReadyAcknowledgesCurrentSeek(t *testing.T) {
 
 // A host who rejoins a playing room alone is told the room's position. Their
 // stream starts at zero, and the first state report can arrive before that
-// seek lands; it must not become the new anchor.
-func TestHostRejoinReportsDoNotRewindTheRoomUntilSynced(t *testing.T) {
+// seek lands. No host report moves the room's clock, and none is corrected.
+func TestHostRejoinReportsNeverMoveTheRoom(t *testing.T) {
 	now := time.Date(2026, 4, 9, 12, 0, 20, 0, time.UTC)
 	repo := &stubRepo{room: baseRoom(now)}
 	repo.room.AnchorPositionSeconds = 600
@@ -1389,10 +1207,9 @@ func TestHostRejoinReportsDoNotRewindTheRoomUntilSynced(t *testing.T) {
 	if _, err := service.AttachSessionForConnection(context.Background(), reg, 7, "host", "session-1"); err != nil {
 		t.Fatalf("attach: %v", err)
 	}
-	if len(conn.payloads) == 0 {
+	if transportCount(conn) != 1 {
 		t.Fatal("expected a sync command for the rejoining host")
 	}
-	before := len(conn.payloads)
 
 	// Stream just started: position 0 while the room is at ~600.
 	if _, err := service.HandleStateReportForConnection(context.Background(), reg, 7, "host", StateReport{SessionID: "session-1", PositionSeconds: 0, IsPaused: false}); err != nil {
@@ -1401,26 +1218,22 @@ func TestHostRejoinReportsDoNotRewindTheRoomUntilSynced(t *testing.T) {
 	if repo.room.AnchorPositionSeconds != 600 {
 		t.Fatalf("host's pre-seek report rewound the room to %v", repo.room.AnchorPositionSeconds)
 	}
-	if len(conn.payloads) == before {
-		t.Fatal("expected the unsynced host to be corrected toward the room like a guest")
-	}
-	corrected := len(conn.payloads)
-	if _, err := service.HandleStateReportForConnection(t.Context(), reg, 7, "host", StateReport{SessionID: "session-1", PositionSeconds: 0, IsPaused: false}); err != nil {
-		t.Fatalf("repeated unsynced report: %v", err)
-	}
-	if len(conn.payloads) != corrected || repo.room.AnchorPositionSeconds != 600 || !service.rooms[repo.room.ID].members[buildMemberKey(7, "host")].syncingToRoom {
-		t.Fatal("repeated host sync report resent correction or restored authority before convergence")
+	if transportCount(conn) != 1 || !service.rooms[repo.room.ID].members[buildMemberKey(7, "host")].syncingToRoom {
+		t.Fatal("the syncing host was corrected or its sync ended before it reached the room")
 	}
 
-	// The seek landed: the host now reports the room's position and becomes authoritative again.
+	// The seek landed and ends the sync. Later host positions still never move the clock.
 	if _, err := service.HandleStateReportForConnection(context.Background(), reg, 7, "host", StateReport{SessionID: "session-1", PositionSeconds: 600.4, IsPaused: false}); err != nil {
 		t.Fatalf("synced report: %v", err)
 	}
-	if _, err := service.HandleStateReportForConnection(context.Background(), reg, 7, "host", StateReport{SessionID: "session-1", PositionSeconds: 650, IsPaused: false}); err != nil {
-		t.Fatalf("authoritative report: %v", err)
+	if service.rooms[repo.room.ID].members[buildMemberKey(7, "host")].syncingToRoom {
+		t.Fatal("reaching the room did not end the host's sync")
 	}
-	if repo.room.AnchorPositionSeconds != 650 {
-		t.Fatalf("host authority not restored after sync: anchor=%v", repo.room.AnchorPositionSeconds)
+	if _, err := service.HandleStateReportForConnection(context.Background(), reg, 7, "host", StateReport{SessionID: "session-1", PositionSeconds: 650, IsPaused: false}); err != nil {
+		t.Fatalf("later report: %v", err)
+	}
+	if repo.room.AnchorPositionSeconds != 600 || transportCount(conn) != 1 {
+		t.Fatalf("a host position moved the room to %v or was corrected", repo.room.AnchorPositionSeconds)
 	}
 }
 
@@ -1457,10 +1270,10 @@ func TestHostTransportRequestEndsRejoinSync(t *testing.T) {
 }
 
 // A rebuilt stream lands the host on a keyframe or segment boundary short of
-// the seek target. The host's real position becomes the anchor and the room
-// resumes instead of waiting out the deadline; a guest at the same offset is
-// still held to the destination.
-func TestHostReadyNearSeekTargetReanchorsTheRoom(t *testing.T) {
+// the seek target. The host counts as ready instead of holding the room until
+// the deadline, but the room keeps the destination; a guest at the same
+// offset is still held to it.
+func TestHostReadyNearSeekTargetKeepsTheRoomClock(t *testing.T) {
 	now := time.Now().UTC()
 	repo := &stubRepo{room: baseRoom(now)}
 	service := newServiceForTest(now, repo, &stubSessions{}, &stubFiles{}, nil)
@@ -1500,8 +1313,8 @@ func TestHostReadyNearSeekTargetReanchorsTheRoom(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !live.members[buildMemberKey(7, "host")].isReady || snapshot.AnchorPositionSeconds != 1494 {
-		t.Fatalf("host ready near the target did not re-anchor: %+v", snapshot)
+	if !live.members[buildMemberKey(7, "host")].isReady || snapshot.AnchorPositionSeconds != 1500 {
+		t.Fatalf("host ready near the target was refused or moved the room: %+v", snapshot)
 	}
 	if snapshot.PlaybackState != RoomPlaybackStateWaiting {
 		t.Fatalf("room resumed before the guest was ready: %+v", snapshot)
@@ -1513,7 +1326,7 @@ func TestHostReadyNearSeekTargetReanchorsTheRoom(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.AnchorPositionSeconds != 1494 {
+	if snapshot.AnchorPositionSeconds != 1500 {
 		t.Fatalf("host far from the target moved the anchor: %+v", snapshot)
 	}
 }

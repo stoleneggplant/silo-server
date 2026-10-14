@@ -31554,6 +31554,8 @@ export interface components {
       allowed: boolean;
       /** @description Displaced v2 room sockets receive a terminal connection_replaced message before closing */
       connection_replaced: boolean;
+      /** @description The server keeps the room's clock and never corrects a member's position; a member behind the room rejoins its live edge with sync_to_room */
+      live_clock: boolean;
       /** @description Members mark themselves ready in the lobby over the room socket */
       lobby_ready: boolean;
       /** Format: int64 */
@@ -31689,6 +31691,11 @@ export interface components {
       room_access_token: string;
     };
     WatchTogetherRoomSnapshot: {
+      /**
+       * Format: date-time
+       * @description Server instant that anchor_position_seconds describes. While playing, the room's live position at time t is anchor_position_seconds + max(0, t - anchor_position_at).
+       */
+      anchor_position_at?: string;
       /** Format: double */
       anchor_position_seconds: number;
       /**

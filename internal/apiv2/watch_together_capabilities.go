@@ -22,6 +22,7 @@ type WatchTogetherCapabilities struct {
 	Picker              bool   `json:"picker"`
 	VoteHostOverride    bool   `json:"vote_host_override" doc:"The host may promote any suggestion in a vote room, not only the leader"`
 	StopPlayback        bool   `json:"stop_playback" doc:"The host may stop playback and return the room to the lobby without ending it"`
+	LiveClock           bool   `json:"live_clock" doc:"The server keeps the room's clock and never corrects a member's position; a member behind the room rejoins its live edge with sync_to_room"`
 	MaxMemberStateIDs   int    `json:"max_member_state_ids"`
 	SocketProtocol      string `json:"socket_protocol"`
 }
@@ -58,6 +59,7 @@ func registerWatchTogetherCapabilities(reg *Registry) {
 			Picker:              reg.deps.WatchTogetherPicker != nil && reg.deps.CatalogAccess != nil,
 			VoteHostOverride:    reg.deps.WatchTogetherSuggestionPromote != nil,
 			StopPlayback:        reg.deps.WatchTogetherStop != nil,
+			LiveClock:           reg.deps.WatchTogetherSocket != nil,
 			MaxMemberStateIDs:   maxIDs,
 			SocketProtocol:      socketProtocol,
 		}}, nil

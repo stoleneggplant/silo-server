@@ -19,6 +19,7 @@ import {
 import { CircleButton } from "./CircleButton";
 import { SeekBar } from "./SeekBar";
 import { formatTime } from "../utils/formatTime";
+import { RoomLiveIndicator, type RoomLiveState } from "./RoomLiveIndicator";
 import { VolumeControl } from "./VolumeControl";
 import { QualityMenu } from "./QualityMenu";
 import { SubtitleMenu } from "./SubtitleMenu";
@@ -121,6 +122,8 @@ interface PlayerControlsProps {
   onMutedChange: (muted: boolean) => void;
   onFullscreenToggle: () => void;
   onSurfaceTap?: (event: MouseEvent<HTMLElement>) => void;
+  /** This viewer's place relative to a Watch Party room's live position. */
+  roomLive?: RoomLiveState | null;
 }
 
 /** Skip amount for the ±seconds buttons, matching keyboard shortcuts. */
@@ -188,6 +191,7 @@ export function PlayerControls({
   onMutedChange,
   onFullscreenToggle,
   onSurfaceTap,
+  roomLive = null,
 }: PlayerControlsProps) {
   const isCoarsePointer = useCoarsePointer();
   const controlsRef = useRef<HTMLDivElement>(null);
@@ -322,6 +326,7 @@ export function PlayerControls({
           onRegionEdgeChange={onRegionEdgeChange}
           onSeek={onSeek}
           onSkip={onSkip}
+          liveEdgeSeconds={roomLive?.liveEdgeSeconds ?? null}
         />
 
         {compactControls ? (
@@ -335,10 +340,13 @@ export function PlayerControls({
                   {title}
                 </div>
               ) : null}
-              <div className="font-mono text-[11px] tracking-[0.12em] text-white/75 tabular-nums">
-                {formatTime(currentTime)}
-                <span className="mx-1 text-white/30">/</span>
-                {formatTime(duration)}
+              <div className="flex items-center gap-2">
+                <div className="font-mono text-[11px] tracking-[0.12em] text-white/75 tabular-nums">
+                  {formatTime(currentTime)}
+                  <span className="mx-1 text-white/30">/</span>
+                  {formatTime(duration)}
+                </div>
+                {roomLive ? <RoomLiveIndicator state={roomLive} /> : null}
               </div>
             </div>
             <SubtitleMenu
@@ -421,6 +429,7 @@ export function PlayerControls({
                   <span className="mx-1 text-white/30">/</span>
                   {formatTime(duration)}
                 </span>
+                {roomLive ? <RoomLiveIndicator state={roomLive} /> : null}
               </div>
             </div>
 

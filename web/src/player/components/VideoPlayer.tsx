@@ -31,6 +31,8 @@ import { computeSubtitleFontSize } from "@/lib/subtitleAppearance";
 import { useNextEpisode } from "../hooks/useNextEpisode";
 import { MARKER_KINDS, useMarkerEditor } from "../hooks/useMarkerEditor";
 import { useWatchTogetherPlaybackSync } from "../hooks/useWatchTogetherPlaybackSync";
+import { roomLivePositionSeconds } from "@/lib/watchTogether";
+import type { RoomLiveState } from "./RoomLiveIndicator";
 import type { WatchTogetherRoomConnectionResult } from "../hooks/useWatchTogetherRoomConnection";
 import { getPersistedVolume, persistVolume } from "./VolumeControl";
 import { playerV2 } from "../player-v2";
@@ -825,6 +827,28 @@ export function VideoPlayer({
     appliedCommandIdRef: appliedRoomCommandIdRef,
     onSustainedStall: noteRoomStall,
   });
+  const roomSyncRequestedRef = useRef(false);
+  const goLiveWithRoom = useCallback(() => {
+    roomSyncRequestedRef.current = watchTogetherSync.syncToRoom().ok;
+  }, [watchTogetherSync]);
+  const roomLiveEdgeSeconds =
+    watchTogetherSync.attachedSessionId !== null &&
+    watchTogetherSync.attachedSessionId === sessionId
+      ? roomLivePositionSeconds(
+          watchTogether.room,
+          // Re-read on every render; currentTime updates drive the re-render.
+          Date.now(),
+          watchTogether.serverTimeOffsetMs,
+        )
+      : null;
+  const roomLive: RoomLiveState | null =
+    roomLiveEdgeSeconds === null
+      ? null
+      : {
+          liveEdgeSeconds: roomLiveEdgeSeconds,
+          behindSeconds: roomLiveEdgeSeconds - currentTime,
+          onGoLive: goLiveWithRoom,
+        };
   const roomPlaybackActive = !!watchTogetherRoomId && !watchTogether.closedReason;
   const roomSyncWaiting = watchTogether.room?.playback_state === "waiting";
   // Media events acknowledge readiness while the room waits and while this
@@ -3205,13 +3229,17 @@ export function VideoPlayer({
       : Date.now();
     const delay = Math.max(0, localExecuteAt - Date.now());
 
+    // The viewer asked to go live; the next command is the server's answer.
+    const viewerRequestedSync = roomSyncRequestedRef.current;
+    roomSyncRequestedRef.current = false;
     const applyRoomPosition = (video: HTMLVideoElement) => {
       if (command.action === "pause" || command.action === "seek") {
         resetRoomCatchupRate();
       }
       const reloadBudget = roomReloadBudgetRef.current;
-      if (command.action === "seek") {
-        // An explicit room seek supersedes any correction reload.
+      if (command.action === "seek" || viewerRequestedSync) {
+        // An explicit room seek, or the viewer going live, supersedes any
+        // earlier reload and its backoff.
         abandonRoomReload(reloadBudget, Date.now());
         settleRoomReloads(reloadBudget);
       }
@@ -4187,6 +4215,7 @@ export function VideoPlayer({
       {!isDetached && isPlayerReady && (
         <PlayerControls
           visible={controlsVisible || markerEditor.editing}
+          roomLive={roomLive}
           skipSeconds={seekIntervals}
           onSkip={skipActions}
           playing={playing}

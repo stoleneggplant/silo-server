@@ -156,7 +156,6 @@ func (s *Service) adoptSelectionWriteLocked(live *liveRoom, room *Room) {
 				member.resetForSelection()
 			}
 		}
-		live.bufferingWaitAt = time.Time{}
 		s.disarmWaitingDeadlineLocked(live)
 	}
 	live.room = *room

@@ -319,7 +319,7 @@ Rows are resolved to catalog cards through the caller's access filter; a row who
 
 ### Watch-together capabilities
 
-`GET /api/v2/watch-together/capabilities` (`getWatchTogetherCapabilities`) requires an authenticated account and follows the shared capability document conventions (opaque `revision`, `state`, `allowed`, private revalidation with `ETag`). When rooms are served, each feature flag reflects its wired operation dependencies. `max_member_state_ids` is 200 when member-state is available and zero otherwise. `lobby_ready`, `connection_replaced` and `socket_protocol` (`silo.room.v2`) require the v2 socket; the protocol is an empty string when the socket is unavailable. When the room service is not wired the state is `not_configured` and every flag is `false`. Clients decide whether to show the staged lobby, the ready check, the mode switch and the shared picker from this document, not from the server version.
+`GET /api/v2/watch-together/capabilities` (`getWatchTogetherCapabilities`) requires an authenticated account and follows the shared capability document conventions (opaque `revision`, `state`, `allowed`, private revalidation with `ETag`). When rooms are served, each feature flag reflects its wired operation dependencies. `max_member_state_ids` is 200 when member-state is available and zero otherwise. `lobby_ready`, `connection_replaced`, `live_clock` and `socket_protocol` (`silo.room.v2`) require the v2 socket; the protocol is an empty string when the socket is unavailable. When the room service is not wired the state is `not_configured` and every flag is `false`. Clients decide whether to show the staged lobby, the ready check, the mode switch and the shared picker from this document, not from the server version.
 
 ### Suggestion creation receipt storage
 
@@ -425,17 +425,14 @@ selection have not changed.
 
 The server ignores an acknowledgement naming an older command without changing
 member readiness or the room anchor. For an explicit seek, a guest's reported
-media position must be within one second of the command's destination. The host
-is the authority on position: a host acknowledgement within fifteen seconds of
-the destination is accepted, and when it is more than one second away the
-host's reported position becomes the room anchor before the room resumes. A
-rebuilt stream that lands on a keyframe or segment boundary short of the
-target therefore resumes from where the host really is instead of holding the
-room until the waiting deadline. Position validation uses the same finite,
-nonnegative range as other playback reports. Buffering pause commands can be
-acknowledged at the member's actual position: they do not require rebuilding an
-otherwise usable stream to reach an unbuffered anchor. Playback correction
-still runs when the room resumes.
+media position must be within one second of the command's destination. A host
+acknowledgement within fifteen seconds of the destination is accepted, so a
+rebuilt stream that lands on a keyframe or segment boundary short of the target
+does not hold the room until the waiting deadline. The room still resumes from
+the destination; no acknowledgement moves the room's clock. Position validation
+uses the same finite, nonnegative range as other playback reports. Buffering
+pause commands can be acknowledged at the member's actual position: they do not
+require rebuilding an otherwise usable stream to reach an unbuffered anchor.
 
 Readiness is level-triggered on the web player. It evaluates the same guards on
 every media event that can indicate playable media (`canplay`,
@@ -461,14 +458,42 @@ or `paused`. The v2 snapshot shows this state as `self_ignore_wait: true`, or as
 the viewer's own member entry still marked `is_buffering`. The client sends the
 acknowledgement once it has executed the latest transport command and its media
 is playable, and retries every 500 ms until its own member entry is `is_ready`.
-The server then clears the viewer's buffering status and, while the room plays,
-sends it a transport command at the room's current position. When nobody else is
-watching, for example after the other viewers left, the room's position moves to
-the viewer's reported position first, so the viewer does not skip ahead. A `state_report` within one second of the room's
+The server then clears the viewer's buffering status and leaves its playback
+where it recovered. When nobody else is watching, for example after the other
+viewers left, the room's position moves to the viewer's reported position, so
+the viewer does not skip ahead. A `state_report` within one second of the room's
 position, with a matching pause state, also marks the member ready and clears
 the same status; this covers late joiners and clients that never send
 `ready`. Seek-destination checks apply only while the room is
 `waiting`.
+
+### Room clock and going live
+
+The server holds the room's clock. No `state_report` moves it and the server
+sends no position corrections, so a viewer who falls behind keeps playing from
+where they are. The one decision a report still carries is the host's pause
+state: a host report whose `is_paused` differs from the room pauses or resumes
+the room at the room's own position.
+
+On a v2 socket, a viewer returns to the room with:
+
+```json
+{"type":"sync_to_room","session_id":"<attached playback session>"}
+```
+
+The server answers with a `transport_command` for that session only, at the
+room's position when the command executes. While the room is `waiting` it sends
+the pending barrier command instead. Nobody else's playback and nothing about the
+room changes. A session that is not attached returns `error bad_request`; v1
+sockets refuse the message.
+
+v2 snapshots carry `anchor_position_at`, the server instant that
+`anchor_position_seconds` describes. While the room is `playing`, its live
+position at time `t` is `anchor_position_seconds + max(0, t − anchor_position_at)`;
+clients convert `t` with the ping-derived server clock offset. A play command
+starts the room's clock at its `execute_at`, so `anchor_position_at` can lie a
+moment in the future. v1 frames omit the field. Servers advertise this behavior
+as `live_clock` in watch-together capabilities.
 
 `command_id` is optional for older clients on the shared v1/v2 message loop. Their
 seek acknowledgements still need to reach the destination, but a client that
@@ -533,17 +558,15 @@ sends no `state_report` while its element is stalled, or while its media is
 unplayable and a readiness acknowledgement is pending. Recovery, a changed
 command/session, pause, a phase change, disconnect, and unmount cancel a pending
 report. The server ignores late buffering reports for paused rooms. A buffering
-report pauses a playing room only when the viewer has not stalled in the last 5
-minutes, the room has not paused for buffering in the last minute, and the viewer
-is not already catching up; a stall from a viewer with nobody else watching
-always pauses the room. Otherwise the room keeps playing and the viewer's snapshot reports
-`self_ignore_wait: true` until it acknowledges recovery. The waiting deadline
-also sets `self_ignore_wait` for the members it skips.
+report never pauses a room that anyone else is watching: the room keeps playing
+and the viewer's snapshot reports `self_ignore_wait: true` until it acknowledges
+recovery. A stall from a viewer with nobody else watching pauses the room. The
+waiting deadline also sets `self_ignore_wait` for the members it skips.
 
 A reconnected socket retains its validated playback-session attachment, and
 reattaching that session does not pause a playing room. Attaching a new playback
 session while the room plays does not pause it either: the member receives a
-transport command at the room's position and catches up alone. A member attaching
+transport command at the room's position, once. A member attaching
 during an explicit seek receives the seek command and must reach its destination
 before acknowledging readiness. See
 [Watch Party synchronization](architecture/watch-party-synchronization.md#buffering-policy)

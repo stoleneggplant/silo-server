@@ -49301,6 +49301,10 @@
             "description": "Displaced v2 room sockets receive a terminal connection_replaced message before closing",
             "type": "boolean"
           },
+          "live_clock": {
+            "description": "The server keeps the room's clock and never corrects a member's position; a member behind the room rejoins its live edge with sync_to_room",
+            "type": "boolean"
+          },
           "lobby_ready": {
             "description": "Members mark themselves ready in the lobby over the room socket",
             "type": "boolean"
@@ -49359,6 +49363,7 @@
           "picker",
           "vote_host_override",
           "stop_playback",
+          "live_clock",
           "max_member_state_ids",
           "socket_protocol",
           "revision",
@@ -49723,6 +49728,13 @@
       "WatchTogetherRoomSnapshot": {
         "additionalProperties": false,
         "properties": {
+          "anchor_position_at": {
+            "description": "Server instant that anchor_position_seconds describes. While playing, the room's live position at time t is anchor_position_seconds + max(0, t - anchor_position_at).",
+            "format": "date-time",
+            "pattern": "^(?:[1-9][0-9]{3}|0[1-9][0-9]{2}|00[1-9][0-9]|000[2-9])-",
+            "patternDescription": "a non-zero RFC 3339 instant",
+            "type": "string"
+          },
           "anchor_position_seconds": {
             "format": "double",
             "type": "number"

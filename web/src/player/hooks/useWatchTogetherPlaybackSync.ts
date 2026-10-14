@@ -39,6 +39,11 @@ interface UseWatchTogetherPlaybackSyncResult {
     isPaused: boolean,
   ) => TransportRequestResult;
   reportReady: () => TransportRequestResult;
+  /**
+   * Asks the server for the room's live position. Only this viewer moves;
+   * the room's clock and everyone else's playback stay as they are.
+   */
+  syncToRoom: () => TransportRequestResult;
   reportBuffering: (positionSeconds?: number, isPaused?: boolean) => TransportRequestResult;
   /**
    * While the element plays a stream's pre-roll up to a room seek target it
@@ -56,11 +61,10 @@ const stateReportIntervalMs = 1_500;
 const waitingReportIntervalMs = 500;
 const pendingCommandQuietPeriodMs = 250;
 const readySeekToleranceSeconds = 1;
-// The host's real position becomes the room anchor, so a rebuilt stream that
-// lands short of the target does not hold the room. Mirrors the server bound.
+// The host may acknowledge a seek it landed short of, so a rebuilt stream does
+// not hold the room. Mirrors the server bound.
 const hostReadySeekToleranceSeconds = 15;
-// Stalls shorter than the room catch-up band stay local: the viewer converges
-// by playback rate instead of pausing everyone.
+// Stalls shorter than this stay local and are never reported to the room.
 const bufferingGraceMs = 2_000;
 // A rebuilt stream can begin short of a room seek target: a copy remux starts
 // at the preceding keyframe, and a progressive response cannot seek inside
@@ -142,8 +146,7 @@ export function useWatchTogetherPlaybackSync({
   const readinessAcknowledged = selfMember?.is_ready === true;
   // The room resumed without this viewer (its waiting deadline passed, or the
   // room does not wait for this viewer's stalls). Recovery must still be
-  // acknowledged, or the server keeps the viewer marked buffering and never
-  // sends it a fresh target.
+  // acknowledged, or the server keeps the viewer marked buffering.
   const catchingUp =
     roomPhase === "playing" &&
     (roomPlaybackState === "playing" || roomPlaybackState === "paused") &&
@@ -582,6 +585,19 @@ export function useWatchTogetherPlaybackSync({
     sessionId,
   ]);
 
+  const syncToRoom = useCallback(() => {
+    if (
+      connectionState !== "connected" ||
+      !roomConnected ||
+      !sessionId ||
+      attachedSessionId !== sessionId ||
+      roomPhase !== "playing"
+    ) {
+      return { ok: false };
+    }
+    return sendRoomMessage({ type: "sync_to_room", session_id: sessionId });
+  }, [attachedSessionId, connectionState, roomConnected, roomPhase, sendRoomMessage, sessionId]);
+
   const reportBuffering = useCallback(
     (positionSeconds?: number, isPaused?: boolean) => {
       const video = videoRef.current;
@@ -642,6 +658,7 @@ export function useWatchTogetherPlaybackSync({
       readinessPending,
       requestTransport,
       reportReady,
+      syncToRoom,
       reportBuffering,
       prerollMutedPreference,
       setPrerollMutedPreference,
@@ -652,6 +669,7 @@ export function useWatchTogetherPlaybackSync({
       readinessPending,
       requestTransport,
       reportReady,
+      syncToRoom,
       reportBuffering,
       prerollMutedPreference,
       setPrerollMutedPreference,

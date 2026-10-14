@@ -28,28 +28,24 @@ type roomRuntime struct {
 	SelectionRevision int64                    `json:"selection_revision"`
 	Command           *TransportCommand        `json:"command,omitempty"`
 	Members           map[string]runtimeMember `json:"members"`
-	BufferingWaitAt   time.Time                `json:"buffering_wait_at,omitzero"`
 }
 
 type runtimeMember struct {
-	UserID             int               `json:"user_id"`
-	ProfileID          string            `json:"profile_id"`
-	DisplayName        string            `json:"display_name"`
-	ConnectionID       string            `json:"connection_id"`
-	Connected          bool              `json:"connected"`
-	LeaseUntil         time.Time         `json:"lease_until"`
-	DisconnectedAt     time.Time         `json:"disconnected_at"`
-	SessionID          string            `json:"session_id"`
-	IsReady            bool              `json:"is_ready"`
-	IsBuffering        bool              `json:"is_buffering"`
-	IgnoreWait         bool              `json:"ignore_wait"`
-	LastPingMS         int64             `json:"last_ping_ms"`
-	CorrectionCommand  *TransportCommand `json:"correction_command,omitempty"`
-	CorrectionAttempts int               `json:"correction_attempts,omitempty"`
-	WaitingCommand     *TransportCommand `json:"waiting_command,omitempty"`
-	SyncingToRoom      bool              `json:"syncing_to_room,omitempty"`
-	LobbyReady         bool              `json:"lobby_ready,omitempty"`
-	LastStallAt        time.Time         `json:"last_stall_at,omitzero"`
+	UserID         int               `json:"user_id"`
+	ProfileID      string            `json:"profile_id"`
+	DisplayName    string            `json:"display_name"`
+	ConnectionID   string            `json:"connection_id"`
+	Connected      bool              `json:"connected"`
+	LeaseUntil     time.Time         `json:"lease_until"`
+	DisconnectedAt time.Time         `json:"disconnected_at"`
+	SessionID      string            `json:"session_id"`
+	IsReady        bool              `json:"is_ready"`
+	IsBuffering    bool              `json:"is_buffering"`
+	IgnoreWait     bool              `json:"ignore_wait"`
+	LastPingMS     int64             `json:"last_ping_ms"`
+	WaitingCommand *TransportCommand `json:"waiting_command,omitempty"`
+	SyncingToRoom  bool              `json:"syncing_to_room,omitempty"`
+	LobbyReady     bool              `json:"lobby_ready,omitempty"`
 }
 
 type roomOperationKey struct{}
@@ -153,7 +149,7 @@ func withRoomOperation[T any](ctx context.Context, s *Service, roomID string, fn
 		live = &liveRoom{members: make(map[string]*memberState)}
 		s.rooms[roomID] = live
 	}
-	previousRoom, previousCommand, previousBufferingWaitAt := live.room, live.command, live.bufferingWaitAt
+	previousRoom, previousCommand := live.room, live.command
 	previousMembers := make(map[string]*memberState, len(live.members))
 	for key, member := range live.members {
 		copy := *member
@@ -190,7 +186,6 @@ func withRoomOperation[T any](ctx context.Context, s *Service, roomID string, fn
 		if s.rooms[roomID] == live || s.rooms[roomID] == nil {
 			s.rooms[roomID] = live
 			live.room, live.command, live.members = previousRoom, previousCommand, previousMembers
-			live.bufferingWaitAt = previousBufferingWaitAt
 			live.broadcastState = ""
 		}
 		s.mu.Unlock()
@@ -207,7 +202,7 @@ func withRoomOperation[T any](ctx context.Context, s *Service, roomID string, fn
 
 func (s *Service) runtimeLocked(live *liveRoom) roomRuntime {
 	runtime := roomRuntime{
-		SelectionRevision: live.room.SelectionRevision, Command: live.command, BufferingWaitAt: live.bufferingWaitAt,
+		SelectionRevision: live.room.SelectionRevision, Command: live.command,
 		Members: make(map[string]runtimeMember, len(live.members)),
 	}
 	for key, m := range live.members {
@@ -215,9 +210,8 @@ func (s *Service) runtimeLocked(live *liveRoom) roomRuntime {
 			UserID: m.userID, ProfileID: m.profileID, DisplayName: m.displayName, ConnectionID: m.connectionID,
 			Connected: memberConnected(m), LeaseUntil: m.leaseUntil, DisconnectedAt: m.disconnectedAt,
 			SessionID: m.sessionID, IsReady: m.isReady, IsBuffering: m.isBuffering, IgnoreWait: m.ignoreWait,
-			LastPingMS: m.lastPingMS, CorrectionCommand: m.correctionCommand, CorrectionAttempts: m.correctionAttempts,
-			WaitingCommand: m.waitingCommand,
-			SyncingToRoom:  m.syncingToRoom, LobbyReady: m.lobbyReady, LastStallAt: m.lastStallAt,
+			LastPingMS: m.lastPingMS, WaitingCommand: m.waitingCommand, SyncingToRoom: m.syncingToRoom,
+			LobbyReady: m.lobbyReady,
 		}
 	}
 	return runtime
@@ -232,10 +226,8 @@ func (s *Service) adoptRuntimeLocked(ctx context.Context, live *liveRoom, room R
 	}
 	live.room = room
 	live.command = state.Command
-	live.bufferingWaitAt = state.BufferingWaitAt
 	if selectionChanged {
 		live.command = nil
-		live.bufferingWaitAt = time.Time{}
 		s.disarmWaitingDeadlineLocked(live)
 	}
 	members := make(map[string]*memberState, len(state.Members))
@@ -245,9 +237,7 @@ func (s *Service) adoptRuntimeLocked(ctx context.Context, live *liveRoom, room R
 			connectionID: stored.ConnectionID, leaseUntil: stored.LeaseUntil, disconnectedAt: stored.DisconnectedAt,
 			sessionID: stored.SessionID, isReady: stored.IsReady, isBuffering: stored.IsBuffering,
 			ignoreWait: stored.IgnoreWait, lastPingMS: stored.LastPingMS, waitingCommand: stored.WaitingCommand,
-			correctionCommand: stored.CorrectionCommand, correctionAttempts: stored.CorrectionAttempts,
 			remoteConnected: stored.Connected, syncingToRoom: stored.SyncingToRoom, lobbyReady: stored.LobbyReady,
-			lastStallAt: stored.LastStallAt,
 		}
 		if old := live.members[key]; old != nil && old.connectionID == stored.ConnectionID && stored.Connected {
 			m.connection, m.lastCommandID = old.connection, old.lastCommandID
@@ -522,6 +512,16 @@ func (s *Service) HandleBufferingForConnection(ctx context.Context, reg *Registr
 	}
 	return withRoomOperation(ctx, s, reg.roomID, func(ctx context.Context) (Snapshot, error) {
 		return s.handleBufferingForConnection(ctx, reg, user, profile, report)
+	})
+}
+
+// HandleSyncToRoomForConnection sends one member the room's live position.
+func (s *Service) HandleSyncToRoomForConnection(ctx context.Context, reg *Registration, user int, profile, sessionID string) (Snapshot, error) {
+	if reg == nil {
+		return Snapshot{}, ErrRoomForbidden
+	}
+	return withRoomOperation(ctx, s, reg.roomID, func(ctx context.Context) (Snapshot, error) {
+		return s.handleSyncToRoomForConnection(ctx, reg, user, profile, sessionID)
 	})
 }
 func (s *Service) HandleStateReportForConnection(ctx context.Context, reg *Registration, user int, profile string, report StateReport) (Snapshot, error) {

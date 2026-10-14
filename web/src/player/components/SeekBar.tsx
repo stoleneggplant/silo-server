@@ -26,6 +26,8 @@ interface SeekBarProps {
   trickplayUpdatedAt?: number;
   /** A preview sheet failed to load, as when its URL expired. */
   onTrickplayError?: () => void;
+  /** A Watch Party room's live position, marked on the track. */
+  liveEdgeSeconds?: number | null;
 }
 
 /** Half the width of the preview bubble when it shows an image (w-44). */
@@ -107,6 +109,7 @@ export function SeekBar({
   trickplay = null,
   trickplayUpdatedAt,
   onTrickplayError,
+  liveEdgeSeconds = null,
 }: SeekBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
@@ -517,6 +520,15 @@ export function SeekBar({
             className="absolute inset-y-0 left-0 rounded-full bg-white shadow-[0_0_10px_-1px_rgb(255_255_255/0.35)]"
             style={{ width: `${playedPercent}%` }}
           />
+          {/* Watch Party live edge */}
+          {liveEdgeSeconds !== null && duration > 0 && liveEdgeSeconds <= duration ? (
+            <div
+              aria-hidden="true"
+              data-testid="seekbar-live-edge"
+              className="absolute top-1/2 z-[2] h-[10px] w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500"
+              style={{ left: `${(liveEdgeSeconds / duration) * 100}%` }}
+            />
+          ) : null}
           {/* Thumb */}
           <div
             className="absolute top-1/2 z-[3] h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white opacity-0 shadow-[0_4px_14px_rgb(0_0_0/0.45)] ring-1 ring-black/10 transition-all duration-200 group-hover/seek:opacity-100 pointer-coarse:opacity-100"

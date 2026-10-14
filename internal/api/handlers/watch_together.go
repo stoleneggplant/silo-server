@@ -74,6 +74,9 @@ func (response watchTogetherRoomResponse) MarshalJSON() ([]byte, error) {
 type watchTogetherRoomSnapshotV1 struct {
 	watchtogether.Snapshot
 	Members []watchTogetherMemberV1 `json:"members,omitempty"`
+	// AnchorPositionAt shadows the v2-only snapshot field and is never set,
+	// so frozen v1 frames keep their shape.
+	AnchorPositionAt string `json:"anchor_position_at,omitempty"`
 }
 
 // Keep the frozen v1 roster independent of new coordinator and v2 member fields.
@@ -143,6 +146,11 @@ type watchTogetherBufferingMessage struct {
 	SessionID       string  `json:"session_id"`
 	PositionSeconds float64 `json:"position_seconds"`
 	IsPaused        bool    `json:"is_paused"`
+}
+
+type watchTogetherSyncToRoomMessage struct {
+	Type      string `json:"type"`
+	SessionID string `json:"session_id"`
 }
 
 type watchTogetherLobbyReadyMessage struct {
@@ -977,6 +985,19 @@ func (h *WatchTogetherHandler) handleRoomClientMessage(
 			PositionSeconds: msg.PositionSeconds,
 			IsPaused:        msg.IsPaused,
 		})
+		return err
+	case "sync_to_room":
+		if !rc.includeMemberStatus {
+			return errors.New("unsupported room websocket message")
+		}
+		var msg watchTogetherSyncToRoomMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			return err
+		}
+		if msg.SessionID == "" {
+			return errors.New("session_id is required")
+		}
+		_, err := h.Service.HandleSyncToRoomForConnection(ctx, reg, userID, profileID, msg.SessionID)
 		return err
 	case "lobby_ready":
 		if !rc.includeMemberStatus {
