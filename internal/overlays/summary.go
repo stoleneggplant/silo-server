@@ -173,11 +173,11 @@ func normalizeAudio(file *models.MediaFile) string {
 	defaultCandidates := make([]string, 0, 4)
 	candidates := make([]string, 0, len(file.AudioTracks)*4+1)
 	for _, track := range file.AudioTracks {
-		atmos := atmosProfile(track.Profile)
+		spatial := spatialAudioProfile(track.Profile)
 		if track.Default {
-			defaultCandidates = append(defaultCandidates, atmos, track.Title, track.EmbeddedTitle, track.Codec)
+			defaultCandidates = append(defaultCandidates, spatial, track.Title, track.EmbeddedTitle, track.Codec)
 		}
-		candidates = append(candidates, atmos, track.Title, track.EmbeddedTitle, track.Codec)
+		candidates = append(candidates, spatial, track.Title, track.EmbeddedTitle, track.Codec)
 	}
 	if len(defaultCandidates) > 0 {
 		defaultCandidates = append(defaultCandidates, file.CodecAudio)
@@ -194,18 +194,24 @@ func normalizeAudio(file *models.MediaFile) string {
 	return normalizeAudioCandidates([]string{file.CodecAudio})
 }
 
-// atmosProfile returns an FFprobe audio profile that names Atmos ("Dolby
-// Digital Plus + Dolby Atmos", "Dolby TrueHD + Dolby Atmos"), or "". The
-// stored codec of an Atmos track is plain eac3 or truehd, and the scanner
-// fills an untagged title with the codec's long name, so the profile is
-// checked before the title. Other profiles are ignored so they cannot change
-// the remaining badges.
-func atmosProfile(profile string) string {
-	if strings.Contains(strings.ToLower(profile), "atmos") {
+// spatialAudioProfile returns an FFprobe audio profile that names Atmos
+// ("Dolby Digital Plus + Dolby Atmos", "Dolby TrueHD + Dolby Atmos") or DTS:X
+// ("DTS-HD MA + DTS:X", "DTS-HD HRA + DTS:X IMAX"), or "". The stored codec
+// of such a track is plain eac3, truehd, or dts, and the scanner fills an
+// untagged title with the codec's long name, so the profile is checked
+// before the title. Other profiles are ignored so they cannot change the
+// remaining badges.
+func spatialAudioProfile(profile string) string {
+	lower := strings.ToLower(profile)
+	if strings.Contains(lower, "atmos") || strings.Contains(lower, "dts:x") {
 		return profile
 	}
 	return ""
 }
+
+// audioLabelDTSX is the audio badge of a DTS:X track; the web overlay
+// renders it as the DTS:X wordmark.
+const audioLabelDTSX = "DTS:X"
 
 func normalizeAudioCandidates(candidates []string) string {
 	for _, candidate := range candidates {
@@ -217,7 +223,9 @@ func normalizeAudioCandidates(candidates []string) string {
 			return "Atmos"
 		case strings.Contains(lower, "truehd"):
 			return "TrueHD"
-		case strings.Contains(lower, "dts-hd"), strings.Contains(lower, "dts:x"), strings.Contains(lower, "dtsx"):
+		case strings.Contains(lower, "dts:x"), strings.Contains(lower, "dtsx"):
+			return audioLabelDTSX
+		case strings.Contains(lower, "dts-hd"):
 			return "DTS-HD"
 		case strings.Contains(lower, "dts"):
 			return "DTS"

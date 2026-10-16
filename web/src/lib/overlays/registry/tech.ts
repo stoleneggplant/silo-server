@@ -19,6 +19,7 @@ function hdrIcon(value: string | undefined): OverlayIconId | null {
 function audioIcon(value: string | undefined): OverlayIconId | null {
   if (!value) return null;
   if (value.toLowerCase() === "atmos") return "atmos";
+  if (value.toUpperCase() === "DTS:X") return "dtsx";
   return "volume";
 }
 
@@ -73,7 +74,7 @@ export const TECH_OVERLAYS: readonly OverlayDef[] = [
     id: "audio",
     category: "tech",
     label: "Audio Codec",
-    description: "Audio codec (Atmos, DTS-HD, TrueHD, etc.)",
+    description: "Audio codec (Atmos, DTS:X, DTS-HD, TrueHD, etc.)",
     defaultPosition: "top-left",
     defaultEnabled: true,
     iconCapable: true,

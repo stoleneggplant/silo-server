@@ -402,9 +402,10 @@ func TestBuildSummaryAggregatesNewFields(t *testing.T) {
 	}
 }
 
-// The stored codec of an Atmos track is plain eac3 or truehd, so with no
-// "Atmos" in the title only the FFprobe profile identifies it.
-func TestNormalizeAudioReadsAtmosFromProfile(t *testing.T) {
+// The stored codec of an Atmos or DTS:X track is plain eac3, truehd, or dts,
+// so with no "Atmos" or "DTS:X" in the title only the FFprobe profile
+// identifies it.
+func TestNormalizeAudioReadsSpatialAudioFromProfile(t *testing.T) {
 	tests := []struct {
 		name   string
 		tracks []models.AudioTrack
@@ -414,6 +415,9 @@ func TestNormalizeAudioReadsAtmosFromProfile(t *testing.T) {
 		{name: "E-AC-3 Atmos", tracks: []models.AudioTrack{{Codec: "eac3", Title: "ATSC A/52B (AC-3, E-AC-3)", Profile: "Dolby Digital Plus + Dolby Atmos", Default: true}}, want: "Atmos"},
 		{name: "TrueHD Atmos", tracks: []models.AudioTrack{{Codec: "truehd", Title: "TrueHD 7.1", Profile: "Dolby TrueHD + Dolby Atmos", Default: true}}, want: "Atmos"},
 		{name: "plain E-AC-3", tracks: []models.AudioTrack{{Codec: "eac3", Title: "ATSC A/52B (AC-3, E-AC-3)", Default: true}}, want: "EAC3"},
+		{name: "DTS-HD MA DTS:X", tracks: []models.AudioTrack{{Codec: "dts", Title: "DCA (DTS Coherent Acoustics)", Profile: "DTS-HD MA + DTS:X", Default: true}}, want: audioLabelDTSX},
+		{name: "DTS-HD HRA DTS:X IMAX", tracks: []models.AudioTrack{{Codec: "dts", Title: "DTS-HD 7.1", Profile: "DTS-HD HRA + DTS:X IMAX", Default: true}}, want: audioLabelDTSX},
+		{name: "DTS:X title", tracks: []models.AudioTrack{{Codec: "dts", Title: "DTS:X 7.1.4", Default: true}}, want: audioLabelDTSX},
 		{name: "DTS profile keeps the codec badge", tracks: []models.AudioTrack{{Codec: "dts", Title: "DCA (DTS Coherent Acoustics)", Profile: "DTS-HD MA", Default: true}}, want: "DTS"},
 		{name: "default track wins over a later Atmos track", tracks: []models.AudioTrack{
 			{Codec: "eac3", Title: "ATSC A/52B (AC-3, E-AC-3)", Default: true},

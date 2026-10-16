@@ -188,6 +188,7 @@ export type OverlayIconId =
   | "hdr"
   | "dolby-vision"
   | "atmos"
+  | "dtsx"
   | "av1";
 
 // Wordmark icons render their text as the mark itself (defined in icons.tsx).
@@ -197,5 +198,6 @@ export const WORDMARK_TEXT: Partial<Record<OverlayIconId, string>> = {
   hdr: "HDR",
   hdr10: "HDR10",
   atmos: "ATMOS",
+  dtsx: "DTS:X",
   av1: "AV1",
 };

@@ -114,6 +114,18 @@ describe("CardOverlays", () => {
     }
   });
 
+  it("renders DTS:X audio as its wordmark", () => {
+    const { container } = render(
+      <CardOverlays
+        data={{ ...SAMPLE_MOVIE_DATA, audio: "DTS:X" }}
+        prefs={prefsWithOnly("audio", "pill")}
+      />,
+    );
+    const badge = container.querySelector("span.inline-flex");
+    expect(badge?.querySelector("svg")?.textContent).toBe("DTS:X");
+    expect(badge?.querySelector("span.truncate")).toBeNull();
+  });
+
   it("keeps the label when the icon does not spell it (DV HDR10)", () => {
     const { container } = render(
       <CardOverlays data={SAMPLE_MOVIE_DATA} prefs={prefsWithOnly("hdr", "pill")} />,

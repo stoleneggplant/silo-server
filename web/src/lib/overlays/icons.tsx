@@ -113,6 +113,24 @@ function AtmosMark(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function DTSXMark(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 40 12" fill="currentColor" {...props}>
+      <text
+        x="20"
+        y="9"
+        fontSize="9"
+        fontWeight="900"
+        textAnchor="middle"
+        fontFamily="system-ui, sans-serif"
+        letterSpacing="0.5"
+      >
+        DTS:X
+      </text>
+    </svg>
+  );
+}
+
 function AV1Mark(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 12" fill="currentColor" {...props}>
@@ -137,6 +155,7 @@ const BRAND_ICONS: Partial<Record<OverlayIconId, BrandIcon>> = {
   hdr10: HDR10Mark,
   "dolby-vision": DolbyVisionMark,
   atmos: AtmosMark,
+  dtsx: DTSXMark,
   av1: AV1Mark,
 };
 
