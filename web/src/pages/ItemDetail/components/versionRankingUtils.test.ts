@@ -61,6 +61,19 @@ describe("pickBestAttributes", () => {
     expect(pickBestAttributes(versions)?.audioLabel).toBe("DD+ Atmos");
   });
 
+  it("labels DTS:X from a later track of the same codec", () => {
+    const versions = [
+      makeVersion({
+        codec_audio: "dts",
+        audio_tracks: [
+          { codec: "dts", profile: "DTS", language: "en" },
+          { codec: "dts", profile: "DTS-HD MA + DTS:X", language: "en" },
+        ],
+      }),
+    ];
+    expect(pickBestAttributes(versions)?.audioLabel).toBe("DTS:X");
+  });
+
   it("labels Atmos from the primary audio track's profile", () => {
     const versions = [
       makeVersion({

@@ -66,22 +66,37 @@ function namesAtmos(lowerCodec: string, atmosEvidence?: string): boolean {
   return mentionsAtmos(atmosEvidence) && codecCanCarryAtmos(lowerCodec);
 }
 
+// "DTS:X", "DTS-X" or "DTSX" as a word.
+const DTSX_WORD = /\bdts[:-]?x\b/i;
+
+/** The audio badge of a DTS:X track; the card overlay shows the same label. */
+export const DTSX_AUDIO_LABEL = "DTS:X";
+
+// Only a DTS stream carries DTS:X, so other codecs' titles ("AC3 5.1 (from
+// DTS:X)") are not evidence.
+function namesDTSX(lowerCodec: string, evidence?: string): boolean {
+  if (DTSX_WORD.test(lowerCodec)) return true;
+  return lowerCodec.includes("dts") && Boolean(evidence && DTSX_WORD.test(evidence));
+}
+
 /**
  * Fuzzy audio-family label for quality badges. The stored codec of an Atmos
- * track is plain "eac3" or "truehd", so atmosEvidence carries any other text
- * that can name Atmos, such as the track's FFprobe profile ("Dolby Digital
- * Plus + Dolby Atmos"). It counts only for a codec that can carry Atmos or
- * an unknown one. audioTrackLabel builds it from a track.
+ * or DTS:X track is plain "eac3", "truehd" or "dts", so evidence carries any
+ * other text that can name Atmos or DTS:X, such as the track's FFprobe
+ * profile ("Dolby Digital Plus + Dolby Atmos", "DTS-HD MA + DTS:X"). It
+ * counts only for a codec that can carry that format (or, for Atmos, an
+ * unknown one). audioTrackLabel builds it from a track.
  */
-export function mapAudioLabel(codec: string, atmosEvidence?: string): string {
+export function mapAudioLabel(codec: string, evidence?: string): string {
   const lower = codec.toLowerCase();
-  if (namesAtmos(lower, atmosEvidence)) {
+  if (namesAtmos(lower, evidence)) {
     if (lower.includes("truehd")) return "TrueHD Atmos";
     if (lower.includes("eac3") || lower.includes("e-ac-3")) return "DD+ Atmos";
     return "Atmos";
   }
+  if (namesDTSX(lower, evidence)) return DTSX_AUDIO_LABEL;
   if (lower.includes("truehd")) return "TrueHD";
-  if (lower.includes("dts-hd") || lower.includes("dts:x")) return "DTS-HD";
+  if (lower.includes("dts-hd")) return "DTS-HD";
   if (lower.includes("dts")) return "DTS";
   if (lower.includes("eac3") || lower.includes("e-ac-3")) return "EAC3";
   if (lower.includes("aac")) return "AAC";
@@ -89,7 +104,7 @@ export function mapAudioLabel(codec: string, atmosEvidence?: string): string {
   return codec.toUpperCase();
 }
 
-/** The audio track fields that can identify a codec and Atmos. */
+/** The audio track fields that can identify a codec, Atmos, and DTS:X. */
 export interface AudioTrackFormat {
   codec?: string;
   profile?: string;
@@ -98,8 +113,9 @@ export interface AudioTrackFormat {
 }
 
 /**
- * Text beyond the codec that can name Atmos: the FFprobe profile, and the
- * track titles, which some releases tag "Atmos" when the profile is empty.
+ * Text beyond the codec that can name Atmos or DTS:X: the FFprobe profile,
+ * and the track titles, which some releases tag "Atmos" or "DTS:X" when the
+ * profile is empty.
  */
 export function audioTrackAtmosEvidence(track: AudioTrackFormat): string {
   return [track.profile, track.title, track.embedded_title].filter(Boolean).join(" ");

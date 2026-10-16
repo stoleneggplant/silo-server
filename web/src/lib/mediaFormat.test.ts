@@ -49,10 +49,18 @@ describe("mapAudioLabel", () => {
     expect(mapAudioLabel("dts", "DTS-HD MA")).toBe("DTS");
   });
 
+  it("reads DTS:X from the FFprobe profile or titles of a DTS track", () => {
+    expect(mapAudioLabel("dts", "DTS-HD MA + DTS:X")).toBe("DTS:X");
+    expect(mapAudioLabel("dts", "DTS-HD HRA + DTS:X IMAX")).toBe("DTS:X");
+    expect(mapAudioLabel("dts", "DTS-X 7.1.4")).toBe("DTS:X");
+    expect(mapAudioLabel("ac3", "AC3 5.1 (from DTS:X)")).toBe("AC3");
+    expect(mapAudioLabel("dts", "DTS-HD MA 7.1 (DTSXP)")).toBe("DTS");
+  });
+
   it("maps codec families", () => {
     expect(mapAudioLabel("truehd")).toBe("TrueHD");
     expect(mapAudioLabel("dts-hd ma")).toBe("DTS-HD");
-    expect(mapAudioLabel("dts:x")).toBe("DTS-HD");
+    expect(mapAudioLabel("dts:x")).toBe("DTS:X");
     expect(mapAudioLabel("dts")).toBe("DTS");
     expect(mapAudioLabel("eac3")).toBe("EAC3");
     expect(mapAudioLabel("e-ac-3")).toBe("EAC3");

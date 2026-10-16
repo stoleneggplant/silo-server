@@ -1,5 +1,5 @@
 import type { FileVersion, LeafItemUserData, PlaybackVariant } from "@/api/types";
-import { audioTrackAtmosEvidence, mapAudioLabel } from "@/lib/mediaFormat";
+import { audioTrackAtmosEvidence, DTSX_AUDIO_LABEL, mapAudioLabel } from "@/lib/mediaFormat";
 import { versionAudioAtmosEvidence } from "./versionFormatUtils";
 
 const RESOLUTION_RANK: Record<string, number> = {
@@ -126,15 +126,16 @@ function bestAttributes(
   let bestAudioEvidence: string | undefined;
   let bestAudioScore = -1;
 
-  // On equal codec scores an Atmos track supplies the label. Equal scores are
-  // the same codec family, so the codec-only label used to pick a version
-  // does not change.
+  // On equal codec scores an Atmos or DTS:X track supplies the label. Equal
+  // scores are the same codec family, so the codec-only label used to pick a
+  // version does not change.
+  const isSpatial = (label: string) => label.includes("Atmos") || label === DTSX_AUDIO_LABEL;
   const replacesBestAudio = (score: number, codec: string, evidence?: string) =>
     score > bestAudioScore ||
     (score >= 0 &&
       score === bestAudioScore &&
-      !mapAudioLabel(bestAudioCodec, bestAudioEvidence).includes("Atmos") &&
-      mapAudioLabel(codec, evidence).includes("Atmos"));
+      !isSpatial(mapAudioLabel(bestAudioCodec, bestAudioEvidence)) &&
+      isSpatial(mapAudioLabel(codec, evidence)));
 
   for (const v of candidates) {
     const rs = resolutionScore(v.resolution);
