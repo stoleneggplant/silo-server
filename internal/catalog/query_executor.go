@@ -20,6 +20,9 @@ const (
 
 type QueryExecutor struct {
 	GroupByWork bool
+	// GroupByMovieCollection collapses the movies of one TMDB collection into
+	// one row, the first of them in the requested order.
+	GroupByMovieCollection bool
 	// SourceWhere and SourceArgs are trusted internal source predicates. The
 	// predicate numbers its parameters from $1; the executor rebinds them.
 	SourceWhere string
@@ -81,7 +84,7 @@ func (e *QueryExecutor) buildCountQuery(def QueryDefinition, access AccessFilter
 	if err != nil {
 		return "", nil, err
 	}
-	if def.Limit != nil && !e.GroupByWork {
+	if def.Limit != nil && !e.grouped() {
 		plan.maxResults = *def.Limit
 	}
 	countSQL, countArgs := plan.countSQL()
@@ -100,7 +103,7 @@ func (e *QueryExecutor) PreviewPage(
 		return nil, 0, false, fmt.Errorf("query executor requires a database pool")
 	}
 
-	if !e.GroupByWork && e.SourceWhere == "" && e.SourceJoin == "" && len(e.SourceOrder) == 0 {
+	if !e.grouped() && e.SourceWhere == "" && e.SourceJoin == "" && len(e.SourceOrder) == 0 {
 		if items, total, hasMore, ok, err := e.tryEpisodeCatalogUserStatePreviewPage(
 			ctx,
 			def,
@@ -545,7 +548,16 @@ func (e *QueryExecutor) buildPreviewPagePlan(
 	if e.GroupByWork {
 		return plan.groupedByWork(), nil
 	}
+	if e.GroupByMovieCollection {
+		return plan.groupedByMovieCollection(), nil
+	}
 	return plan, nil
+}
+
+// grouped reports whether the executor collapses rows into groups, which
+// makes a query limit count groups rather than raw matches.
+func (e *QueryExecutor) grouped() bool {
+	return e.GroupByWork || e.GroupByMovieCollection
 }
 
 func normalizePreviewPageBounds(def QueryDefinition, limit int, offset int) (int, int, int) {

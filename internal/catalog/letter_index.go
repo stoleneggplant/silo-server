@@ -66,6 +66,9 @@ func (e *QueryExecutor) LetterIndex(ctx context.Context, def QueryDefinition, ac
 	if e.GroupByWork {
 		return LetterIndex{}, fmt.Errorf("%w: the letter index does not group by work", ErrInvalidCatalogRequest)
 	}
+	if e.GroupByMovieCollection {
+		return LetterIndex{}, fmt.Errorf("%w: the letter index does not group by movie collection", ErrInvalidCatalogRequest)
+	}
 	if NormalizeQuerySort(def.Sort).Field != querySortTitle {
 		return LetterIndex{}, fmt.Errorf("%w: the letter index needs title order", ErrInvalidCatalogRequest)
 	}

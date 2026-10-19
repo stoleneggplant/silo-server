@@ -18,7 +18,7 @@ import (
 type CatalogItem struct {
 	ContentID              string                    `json:"content_id" doc:"Deterministic catalog identifier" example:"movie:heat-1995"`
 	PlayContentID          string                    `json:"play_content_id,omitempty" doc:"The item to play when the card is a series or season; absent when the item plays itself"`
-	Type                   string                    `json:"type" doc:"movie, series, season, episode, audiobook, ebook, podcast, podcast_episode" example:"movie"`
+	Type                   string                    `json:"type" doc:"movie, series, season, episode, audiobook, ebook, podcast, podcast_episode; work or movie_collection on a grouped browse" example:"movie"`
 	Title                  string                    `json:"title" example:"Heat"`
 	SeriesID               string                    `json:"series_id,omitempty" doc:"Owning series of an episode or season"`
 	SeriesTitle            string                    `json:"series_title,omitempty"`
@@ -70,6 +70,9 @@ type CatalogItem struct {
 	WorkID                     string              `json:"work_id,omitempty" doc:"The work (book) an audiobook or ebook edition belongs to"`
 	WorkTitle                  string              `json:"work_title,omitempty"`
 	WorkFormats                []CatalogWorkFormat `json:"work_formats,omitempty" doc:"Sibling editions of the same work"`
+	// MovieCollection is set on box-set cards of a group=tmdb_collection
+	// browse.
+	MovieCollection *CatalogMovieCollectionCard `json:"movie_collection,omitempty" doc:"On a type=movie_collection card: the box set the card stands for. content_id stays the box set's first movie in the requested order"`
 }
 
 // CatalogItemOverlay is the technical summary a card overlays.
@@ -194,6 +197,9 @@ func catalogItemOfListing(v handlers.CollectionItemView, sel ratingsources.Selec
 		MangaChapterCount: v.MangaChapterCount, MangaVolumeCount: v.MangaVolumeCount,
 		OverlaySummary: catalogOverlayOf(v.OverlaySummary), UserState: catalogUserStateOf(v.UserState),
 		WorkID: v.WorkID, WorkTitle: v.WorkTitle,
+	}
+	if c := v.MovieCollection; c != nil {
+		item.MovieCollection = &CatalogMovieCollectionCard{ID: IDFromInt(int64(c.TMDBCollectionID)), Title: c.Title, MemberCount: c.MemberCount, PlayedCount: c.PlayedCount}
 	}
 	if m := v.SortMetrics; m != nil {
 		item.SortMetrics = &CatalogItemSortMetrics{ReleaseDate: m.ReleaseDate, RuntimeMinutes: m.RuntimeMinutes, Resolution: m.Resolution, BitrateKbps: m.BitrateKbps,

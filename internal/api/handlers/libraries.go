@@ -223,6 +223,9 @@ type createLibraryRequest struct {
 	RealtimeMonitoring *bool `json:"-"`
 	// TrickplayEnabled is set only by the v2 createLibrary operation.
 	TrickplayEnabled bool `json:"-"`
+	// MovieCollectionGroupingDefault is set only by the v2 createLibrary
+	// operation; empty means flat.
+	MovieCollectionGroupingDefault string `json:"-"`
 }
 
 // updateLibraryRequest represents the JSON body for PUT /libraries/{id}.
@@ -243,6 +246,9 @@ type updateLibraryRequest struct {
 	RealtimeMonitoring *bool `json:"-"`
 	// TrickplayEnabled is set only by the v2 updateLibrary operation.
 	TrickplayEnabled *bool `json:"-"`
+	// MovieCollectionGroupingDefault is set only by the v2 updateLibrary
+	// operation.
+	MovieCollectionGroupingDefault *string `json:"-"`
 }
 
 // affectsTrickplay reports whether the update can change which of the
@@ -306,6 +312,8 @@ type libraryResponse struct {
 	// view only.
 	TrickplayEnabled   bool `json:"-"`
 	TrickplaySupported bool `json:"-"`
+	// MovieCollectionGroupingDefault is read by the v2 library view only.
+	MovieCollectionGroupingDefault string `json:"-"`
 }
 
 type libraryMountCheckRootResponse struct {
@@ -428,7 +436,7 @@ func toLibraryResponse(f *models.MediaFolder) libraryResponse {
 	if trailerKinds == nil {
 		trailerKinds = []string{}
 	}
-	return libraryResponse{
+	resp := libraryResponse{
 		ID:                         f.ID,
 		Paths:                      paths,
 		Type:                       f.Type,
@@ -448,6 +456,8 @@ func toLibraryResponse(f *models.MediaFolder) libraryResponse {
 		RealtimeMonitoring:         f.RealtimeMonitoring,
 		TrickplayEnabled:           f.TrickplayEnabled,
 	}
+	resp.MovieCollectionGroupingDefault = f.MovieCollectionGroupingDefault
+	return resp
 }
 
 // toLibraryResponseWithPoster converts a MediaFolder model to a libraryResponse

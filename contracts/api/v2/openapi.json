@@ -22193,6 +22193,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "movie_collection": {
+            "$ref": "#/components/schemas/CatalogMovieCollectionCard",
+            "description": "On a type=movie_collection card: the box set the card stands for. content_id stays the box set's first movie in the requested order"
+          },
           "networks": {
             "items": {
               "type": "string"
@@ -22315,7 +22319,7 @@
             "type": "string"
           },
           "type": {
-            "description": "movie, series, season, episode, audiobook, ebook, podcast, podcast_episode",
+            "description": "movie, series, season, episode, audiobook, ebook, podcast, podcast_episode; work or movie_collection on a grouped browse",
             "examples": [
               "movie"
             ],
@@ -22622,6 +22626,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "movie_collection": {
+            "$ref": "#/components/schemas/CatalogMovieCollectionCard",
+            "description": "On a type=movie_collection card: the box set the card stands for. content_id stays the box set's first movie in the requested order"
+          },
           "networks": {
             "items": {
               "type": "string"
@@ -22811,7 +22819,7 @@
             "type": "string"
           },
           "type": {
-            "description": "movie, series, season, episode, audiobook, ebook, podcast, podcast_episode",
+            "description": "movie, series, season, episode, audiobook, ebook, podcast, podcast_episode; work or movie_collection on a grouped browse",
             "examples": [
               "movie"
             ],
@@ -23209,6 +23217,48 @@
         },
         "type": "object"
       },
+      "CatalogMovieCollectionCard": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "The TMDB collection id; pass it to getMovieCollection",
+            "examples": [
+              "2344"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "member_count": {
+            "description": "Movies of the collection the viewer can see in the browsed libraries; at least 2",
+            "examples": [
+              3
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "played_count": {
+            "description": "How many of those movies the viewer has watched",
+            "examples": [
+              1
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "title": {
+            "examples": [
+              "The Matrix Collection"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "member_count",
+          "played_count"
+        ],
+        "type": "object"
+      },
       "CatalogQuery": {
         "additionalProperties": false,
         "properties": {
@@ -23219,8 +23269,10 @@
             "type": "string"
           },
           "group": {
+            "description": "As the listCatalogItems group parameter",
             "enum": [
-              "work"
+              "work",
+              "tmdb_collection"
             ],
             "type": "string"
           },
@@ -23470,6 +23522,10 @@
             "description": "Oldest ranking sessions expire when this retention bound is exceeded",
             "format": "int64",
             "type": "integer"
+          },
+          "movie_collection_grouping": {
+            "description": "listCatalogItems and queryCatalogItems accept group=tmdb_collection on the query source, which shows the movies of one TMDB collection as one type=movie_collection card; getMovieCollection lists a box set's movies, and getMovieCollectionGrouping says whether the acting profile browses a library grouped",
+            "type": "boolean"
           },
           "people_media_scope": {
             "description": "People search accepts media_scope and filters credits by viewer access",
@@ -30547,6 +30603,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "movie_collection": {
+            "$ref": "#/components/schemas/CatalogMovieCollectionCard",
+            "description": "On a type=movie_collection card: the box set the card stands for. content_id stays the box set's first movie in the requested order"
+          },
           "networks": {
             "items": {
               "type": "string"
@@ -30669,7 +30729,7 @@
             "type": "string"
           },
           "type": {
-            "description": "movie, series, season, episode, audiobook, ebook, podcast, podcast_episode",
+            "description": "movie, series, season, episode, audiobook, ebook, podcast, podcast_episode; work or movie_collection on a grouped browse",
             "examples": [
               "movie"
             ],
@@ -32030,6 +32090,17 @@
             ],
             "type": "string"
           },
+          "movie_collection_grouping_default": {
+            "description": "Whether the library's Browse shows the movies of one TMDB collection as one box set for profiles that have not chosen (ui.movie_collection_grouping)",
+            "enum": [
+              "grouped",
+              "flat"
+            ],
+            "examples": [
+              "flat"
+            ],
+            "type": "string"
+          },
           "name": {
             "examples": [
               "Movies"
@@ -32134,7 +32205,8 @@
           "trickplay_supported",
           "trailer_kinds",
           "realtime_monitoring",
-          "sort_order"
+          "sort_order",
+          "movie_collection_grouping_default"
         ],
         "type": "object"
       },
@@ -32404,6 +32476,17 @@
             "description": "ISO 639-1 code; default en",
             "examples": [
               "en"
+            ],
+            "type": "string"
+          },
+          "movie_collection_grouping_default": {
+            "description": "Whether Browse shows box sets for profiles that have not chosen; omitted means flat",
+            "enum": [
+              "grouped",
+              "flat"
+            ],
+            "examples": [
+              "flat"
             ],
             "type": "string"
           },
@@ -33197,6 +33280,17 @@
             "description": "ISO 639-1 code; a change queues a quick metadata refresh",
             "examples": [
               "en"
+            ],
+            "type": "string"
+          },
+          "movie_collection_grouping_default": {
+            "description": "Whether Browse shows box sets for profiles that have not chosen",
+            "enum": [
+              "grouped",
+              "flat"
+            ],
+            "examples": [
+              "grouped"
             ],
             "type": "string"
           },
@@ -35041,6 +35135,104 @@
           "force",
           "created_at",
           "updated_at"
+        ],
+        "type": "object"
+      },
+      "MovieCollection": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "The TMDB collection id",
+            "examples": [
+              "2344"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "items": {
+            "description": "The collection's movies the viewer can see, in TMDB's collection order; movies TMDB no longer lists follow by release date",
+            "items": {
+              "$ref": "#/components/schemas/CatalogItem"
+            },
+            "type": "array"
+          },
+          "member_count": {
+            "description": "len(items)",
+            "examples": [
+              3
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "overview": {
+            "type": "string"
+          },
+          "played_count": {
+            "description": "How many of the movies the viewer has watched",
+            "examples": [
+              1
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "title": {
+            "examples": [
+              "The Matrix Collection"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "member_count",
+          "played_count",
+          "items"
+        ],
+        "type": "object"
+      },
+      "MovieCollectionGrouping": {
+        "additionalProperties": false,
+        "properties": {
+          "effective": {
+            "description": "What to browse the library with: grouped means listCatalogItems with group=tmdb_collection",
+            "enum": [
+              "grouped",
+              "flat"
+            ],
+            "examples": [
+              "grouped"
+            ],
+            "type": "string"
+          },
+          "library_default": {
+            "description": "The library's movie_collection_grouping_default, set by an administrator",
+            "enum": [
+              "grouped",
+              "flat"
+            ],
+            "examples": [
+              "flat"
+            ],
+            "type": "string"
+          },
+          "source": {
+            "description": "Where effective came from: the profile's ui.movie_collection_grouping value for this library, its value for every library, or the library default",
+            "enum": [
+              "profile_library",
+              "profile",
+              "library_default"
+            ],
+            "examples": [
+              "profile"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "library_default",
+          "effective",
+          "source"
         ],
         "type": "object"
       },
@@ -50785,6 +50977,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "movie_collection": {
+            "$ref": "#/components/schemas/CatalogMovieCollectionCard",
+            "description": "On a type=movie_collection card: the box set the card stands for. content_id stays the box set's first movie in the requested order"
+          },
           "networks": {
             "items": {
               "type": "string"
@@ -50907,7 +51103,7 @@
             "type": "string"
           },
           "type": {
-            "description": "movie, series, season, episode, audiobook, ebook, podcast, podcast_episode",
+            "description": "movie, series, season, episode, audiobook, ebook, podcast, podcast_episode; work or movie_collection on a grouped browse",
             "examples": [
               "movie"
             ],
@@ -51144,6 +51340,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "movie_collection": {
+            "$ref": "#/components/schemas/CatalogMovieCollectionCard",
+            "description": "On a type=movie_collection card: the box set the card stands for. content_id stays the box set's first movie in the requested order"
+          },
           "networks": {
             "items": {
               "type": "string"
@@ -51266,7 +51466,7 @@
             "type": "string"
           },
           "type": {
-            "description": "movie, series, season, episode, audiobook, ebook, podcast, podcast_episode",
+            "description": "movie, series, season, episode, audiobook, ebook, podcast, podcast_episode; work or movie_collection on a grouped browse",
             "examples": [
               "movie"
             ],
@@ -135010,14 +135210,15 @@
             }
           },
           {
-            "description": "group=work collapses editions of one book into one card",
+            "description": "group=work collapses editions of one book into one card. group=tmdb_collection, for source=query without q, shows the movies of one TMDB collection as one box-set card (type movie_collection); see getCatalogSearchCapabilities.movie_collection_grouping",
             "explode": false,
             "in": "query",
             "name": "group",
             "schema": {
-              "description": "group=work collapses editions of one book into one card",
+              "description": "group=work collapses editions of one book into one card. group=tmdb_collection, for source=query without q, shows the movies of one TMDB collection as one box-set card (type movie_collection); see getCatalogSearchCapabilities.movie_collection_grouping",
               "enum": [
-                "work"
+                "work",
+                "tmdb_collection"
               ],
               "type": "string"
             }
@@ -138227,6 +138428,351 @@
         ],
         "x-silo-class": "profile_scoped",
         "x-silo-retry-safety": "natural_idempotent",
+        "x-silo-service-backed": true
+      }
+    },
+    "/api/v2/catalog/movie-collection-grouping": {
+      "get": {
+        "operationId": "getMovieCollectionGrouping",
+        "parameters": [
+          {
+            "description": "The household profile acting for this request; it must belong to the authenticated account.",
+            "in": "header",
+            "name": "X-Profile-Id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "1"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Verification proof for a PIN-locked profile, issued by POST /api/v2/profiles/{id}/verify-pin; required only when the declared profile is locked",
+            "in": "header",
+            "name": "X-Profile-Token",
+            "schema": {
+              "examples": [
+                "pvt_5f3a9c1e7b2d4e8fa0c6"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "The movie library being browsed",
+            "explode": false,
+            "in": "query",
+            "name": "library_id",
+            "required": true,
+            "schema": {
+              "description": "The movie library being browsed",
+              "examples": [
+                "1"
+              ],
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovieCollectionGrouping"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "406": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not Acceptable"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Whether a movie library's Browse shows box sets for the acting profile.",
+        "tags": [
+          "catalog"
+        ],
+        "x-silo-class": "profile_scoped",
+        "x-silo-service-backed": true
+      }
+    },
+    "/api/v2/catalog/movie-collections/{id}": {
+      "get": {
+        "operationId": "getMovieCollection",
+        "parameters": [
+          {
+            "description": "The household profile acting for this request; it must belong to the authenticated account.",
+            "in": "header",
+            "name": "X-Profile-Id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "1"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Verification proof for a PIN-locked profile, issued by POST /api/v2/profiles/{id}/verify-pin; required only when the declared profile is locked",
+            "in": "header",
+            "name": "X-Profile-Token",
+            "schema": {
+              "examples": [
+                "pvt_5f3a9c1e7b2d4e8fa0c6"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "TMDB collection id, as movie_collection.id on a card",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "TMDB collection id, as movie_collection.id on a card",
+              "examples": [
+                "2344"
+              ],
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "The library being browsed; absent includes every library the viewer can see",
+            "explode": false,
+            "in": "query",
+            "name": "library_id",
+            "schema": {
+              "description": "The library being browsed; absent includes every library the viewer can see",
+              "examples": [
+                "1"
+              ],
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Artwork variant to presign",
+            "explode": false,
+            "in": "query",
+            "name": "image_size",
+            "schema": {
+              "description": "Artwork variant to presign",
+              "enum": [
+                "small",
+                "medium",
+                "large",
+                "original"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovieCollection"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "406": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not Acceptable"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One box set: the movies of a TMDB collection the viewer can see, in collection order.",
+        "tags": [
+          "catalog"
+        ],
+        "x-silo-class": "profile_scoped",
         "x-silo-service-backed": true
       }
     },

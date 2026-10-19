@@ -13,6 +13,13 @@ const (
 	mediaCodecH264         = "h264"
 )
 
+// A movie library's movie_collection_grouping_default: whether Browse shows a
+// TMDB collection's movies as one box set.
+const (
+	MovieCollectionGroupingGrouped = "grouped"
+	MovieCollectionGroupingFlat    = "flat"
+)
+
 // MediaFolder represents a row in the media_folders table.
 type MediaFolder struct {
 	ID                       int
@@ -31,6 +38,10 @@ type MediaFolder struct {
 	// takes effect only while the server-wide scanner.realtime_monitoring
 	// setting is on and the library is enabled.
 	RealtimeMonitoring bool
+	// MovieCollectionGroupingDefault is "grouped" or "flat": whether Browse
+	// shows a TMDB collection's movies as one box set for viewers who have not
+	// chosen (ui.movie_collection_grouping).
+	MovieCollectionGroupingDefault string
 	// TrailerKinds is the allow-list of remote video kinds (ExtraKind values)
 	// fetched during metadata refresh for this library. Empty disables remote
 	// videos entirely.

@@ -287,6 +287,9 @@ func (r *CatalogResolver) Resolve(ctx context.Context, req CatalogRequest, acces
 	if r == nil || r.browseRepo == nil || r.itemRepo == nil {
 		return nil, fmt.Errorf("catalog resolver requires browse and item repositories")
 	}
+	if req.GroupByMovieCollection && req.Source != CatalogSourceQuery {
+		return nil, fmt.Errorf("%w: movie collection grouping applies to source=query only", ErrInvalidCatalogRequest)
+	}
 	switch req.Source {
 	case CatalogSourceQuery:
 		if err := validateCatalogQueryRequest(req, strings.TrimSpace(access.ProfileID) != ""); err != nil {
@@ -433,6 +436,7 @@ func (r *CatalogResolver) previewQuerySource(ctx context.Context, req CatalogReq
 		}
 		pager := r.queryExecutorForScope(req.Query.MediaScope, &snapshot)
 		pager.GroupByWork = req.GroupByWork
+		pager.GroupByMovieCollection = req.GroupByMovieCollection
 		if req.SnapshotAt != nil {
 			// The client pins this snapshot for the whole browse, so its
 			// later jumps reuse the anchors.

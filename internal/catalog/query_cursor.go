@@ -184,7 +184,7 @@ func (e *QueryExecutor) PreviewCursorPage(ctx context.Context, def QueryDefiniti
 			return QueryCursorPage{}, fmt.Errorf("invalid cursor consumed count")
 		}
 	}
-	if def.Limit != nil && !e.GroupByWork {
+	if def.Limit != nil && !e.grouped() {
 		if *def.Limit <= 0 {
 			return QueryCursorPage{}, fmt.Errorf("query limit must be positive")
 		}
@@ -197,7 +197,7 @@ func (e *QueryExecutor) PreviewCursorPage(ctx context.Context, def QueryDefiniti
 	if err != nil {
 		return QueryCursorPage{}, err
 	}
-	if def.Limit != nil && !e.GroupByWork {
+	if def.Limit != nil && !e.grouped() {
 		plan.maxResults = *def.Limit - consumed
 	}
 	sql, args, err := plan.cursorSQL(after)
@@ -233,7 +233,7 @@ func (e *QueryExecutor) PreviewCursorPage(ctx context.Context, def QueryDefiniti
 		}
 	}
 	if includeTotal {
-		if def.Limit != nil && !e.GroupByWork {
+		if def.Limit != nil && !e.grouped() {
 			plan.maxResults = *def.Limit
 		}
 		countSQL, countArgs := plan.countSQL()

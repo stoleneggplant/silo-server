@@ -1105,6 +1105,8 @@ type CatalogBrowseService interface {
 	SearchFacet(ctx context.Context, v handlers.ItemViewer, req mediacatalog.CatalogRequest, facet, q string, limit int) (handlers.CatalogFacetSearchView, error)
 	AudiobookGroups(ctx context.Context, v handlers.ItemViewer, query mediacatalog.AudiobookGroupsQuery) (handlers.AudiobookGroupsView, error)
 	LetterIndex(ctx context.Context, v handlers.ItemViewer, req mediacatalog.CatalogRequest) (mediacatalog.LetterIndex, error)
+	MovieCollection(ctx context.Context, v handlers.ItemViewer, tmdbCollectionID int, libraryIDs []int) (handlers.MovieCollectionView, error)
+	LibraryMovieCollectionGroupingDefault(ctx context.Context, v handlers.ItemViewer, libraryID int) (string, error)
 }
 
 // CatalogItemService is the slice of *handlers.CatalogResourceHandler the

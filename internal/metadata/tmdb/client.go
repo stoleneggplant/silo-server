@@ -846,10 +846,29 @@ func (c *Client) GetCollection(ctx context.Context, id int) (*Collection, error)
 	}
 
 	return &Collection{
-		ID:    resp.ID,
-		Name:  resp.Name,
-		Parts: parts,
+		ID:       resp.ID,
+		Name:     resp.Name,
+		Overview: resp.Overview,
+		Parts:    parts,
 	}, nil
+}
+
+// GetMovieCollectionID returns the id of the TMDB collection a movie belongs
+// to, or 0 when it belongs to none. It reads the bare /movie/{id} document
+// rather than GetMediaDetail, whose appended credits and recommendations a
+// bulk membership check has no use for.
+func (c *Client) GetMovieCollectionID(ctx context.Context, movieID int) (int, error) {
+	if movieID <= 0 {
+		return 0, fmt.Errorf("tmdb: movie id must be > 0 (got %d)", movieID)
+	}
+	var resp movieCollectionResponse
+	if err := c.doGet(ctx, fmt.Sprintf("/movie/%d", movieID), &resp); err != nil {
+		return 0, err
+	}
+	if resp.BelongsToCollection == nil {
+		return 0, nil
+	}
+	return resp.BelongsToCollection.ID, nil
 }
 
 // GetList fetches the entries of a public, user-authored TMDB list in list

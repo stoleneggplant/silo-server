@@ -317,6 +317,8 @@ export const v2Operations = {
   "GET /api/v2/catalog/items/{id}/manga-files": "listCatalogItemMangaFiles",
   "GET /api/v2/catalog/items/{id}/themes/{theme_id}/audio": "getThemeSongAudio",
   "GET /api/v2/catalog/items/{id}/versions": "listCatalogItemVersions",
+  "GET /api/v2/catalog/movie-collection-grouping": "getMovieCollectionGrouping",
+  "GET /api/v2/catalog/movie-collections/{id}": "getMovieCollection",
   "GET /api/v2/catalog/people": "listPeople",
   "GET /api/v2/catalog/people/{id}": "getPerson",
   "GET /api/v2/catalog/search/capabilities": "getCatalogSearchCapabilities",

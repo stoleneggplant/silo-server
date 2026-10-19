@@ -356,6 +356,9 @@ type itemListResponse struct {
 	WorkID                 string                      `json:"work_id,omitempty"`
 	WorkTitle              string                      `json:"work_title,omitempty"`
 	WorkFormats            []catalog.WorkFormatSummary `json:"work_formats,omitempty"`
+	// MovieCollection marks a box-set card on a v2 grouped browse; the frozen
+	// v1 shape leaves it out.
+	MovieCollection *MovieCollectionCardView `json:"-"`
 }
 
 type sortMetricsResponse struct {

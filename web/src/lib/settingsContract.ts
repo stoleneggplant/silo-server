@@ -9,7 +9,7 @@
  */
 
 export const SETTINGS_API_VERSION = 1;
-export const SETTINGS_REVISION = 17;
+export const SETTINGS_REVISION = 18;
 
 export interface SettingSuggestedOption {
   value: string;
@@ -298,6 +298,8 @@ export const SETTING_KEYS = {
   UI_LIBRARY_ORDER: "ui.library_order",
   /** Remembered library view */
   UI_LIBRARY_PAGE_STATE: "ui.library_page_state",
+  /** Movie collections */
+  UI_MOVIE_COLLECTION_GROUPING: "ui.movie_collection_grouping",
   /** Next up episodes */
   UI_NEXT_UP_MODE: "ui.next_up_mode",
   /** Remember library view */
@@ -1435,6 +1437,27 @@ export const SETTING_DEFINITIONS: Record<SettingKey, SettingDefinition> = {
     description: "Saved browse state for each library.",
     category: "navigation",
     platforms: ["web"],
+  },
+  "ui.movie_collection_grouping": {
+    key: "ui.movie_collection_grouping",
+    type: "enum",
+    nullable: true,
+    persistence: "remote",
+    introducedIn: 18,
+    scopes: ["profile", "profile_library"],
+    scopeIntroducedIn: [18, 18],
+    resolutionOrder: ["profile_library", "profile", "default"],
+    defaultValue: null,
+    label: "Movie collections",
+    description:
+      "Show the movies of one collection, such as a film series, as a single box set when browsing a movie library.",
+    category: "catalog",
+    control: "select",
+    unsetLabel: "Library default",
+    values: [
+      { value: "grouped", label: "Box sets", introducedIn: 18 },
+      { value: "flat", label: "Individual movies", introducedIn: 18 },
+    ],
   },
   "ui.next_up_mode": {
     key: "ui.next_up_mode",

@@ -55,4 +55,8 @@ type CatalogRequest struct {
 	// field or with not_in_last that /api/v2 added is refused. ParseCatalogRequest
 	// sets it unless the caller opts in to ExtendedRules.
 	V1Rules bool
+	// GroupByMovieCollection shows the movies of one TMDB collection as one
+	// box-set row. Only a query-source browse without search text groups; a
+	// search lists movies individually.
+	GroupByMovieCollection bool
 }

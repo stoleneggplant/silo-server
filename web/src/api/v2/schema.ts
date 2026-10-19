@@ -6729,6 +6729,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v2/catalog/movie-collection-grouping": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Whether a movie library's Browse shows box sets for the acting profile. */
+    get: operations["getMovieCollectionGrouping"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v2/catalog/movie-collections/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** One box set: the movies of a TMDB collection the viewer can see, in collection order. */
+    get: operations["getMovieCollection"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v2/catalog/people": {
     parameters: {
       query?: never;
@@ -20598,6 +20632,8 @@ export interface components {
       manga_chapter_count?: number;
       /** Format: int64 */
       manga_volume_count?: number;
+      /** @description On a type=movie_collection card: the box set the card stands for. content_id stays the box set's first movie in the requested order */
+      movie_collection?: components["schemas"]["CatalogMovieCollectionCard"];
       networks?: string[];
       /** @example en */
       original_language?: string;
@@ -20666,7 +20702,7 @@ export interface components {
       /** @example Heat */
       title: string;
       /**
-       * @description movie, series, season, episode, audiobook, ebook, podcast, podcast_episode
+       * @description movie, series, season, episode, audiobook, ebook, podcast, podcast_episode; work or movie_collection on a grouped browse
        * @example movie
        */
       type: string;
@@ -20787,6 +20823,8 @@ export interface components {
       manga_chapter_count?: number;
       /** Format: int64 */
       manga_volume_count?: number;
+      /** @description On a type=movie_collection card: the box set the card stands for. content_id stays the box set's first movie in the requested order */
+      movie_collection?: components["schemas"]["CatalogMovieCollectionCard"];
       networks?: string[];
       /** @example en */
       original_language?: string;
@@ -20880,7 +20918,7 @@ export interface components {
       tmdb_id?: string;
       tvdb_id?: string;
       /**
-       * @description movie, series, season, episode, audiobook, ebook, podcast, podcast_episode
+       * @description movie, series, season, episode, audiobook, ebook, podcast, podcast_episode; work or movie_collection on a grouped browse
        * @example movie
        */
       type: string;
@@ -21048,11 +21086,35 @@ export interface components {
        */
       type?: string;
     };
+    CatalogMovieCollectionCard: {
+      /**
+       * @description The TMDB collection id; pass it to getMovieCollection
+       * @example 2344
+       */
+      id: string;
+      /**
+       * Format: int64
+       * @description Movies of the collection the viewer can see in the browsed libraries; at least 2
+       * @example 3
+       */
+      member_count: number;
+      /**
+       * Format: int64
+       * @description How many of those movies the viewer has watched
+       * @example 1
+       */
+      played_count: number;
+      /** @example The Matrix Collection */
+      title: string;
+    };
     CatalogQuery: {
       collection_id?: string;
       cursor?: string;
-      /** @enum {string} */
-      group?: "work";
+      /**
+       * @description As the listCatalogItems group parameter
+       * @enum {string}
+       */
+      group?: "work" | "tmdb_collection";
       /** @description Rule groups; empty matches everything */
       groups?: components["schemas"]["CatalogQueryGroup"][];
       /**
@@ -21171,6 +21233,8 @@ export interface components {
        * @description Oldest ranking sessions expire when this retention bound is exceeded
        */
       max_sessions_per_account?: number;
+      /** @description listCatalogItems and queryCatalogItems accept group=tmdb_collection on the query source, which shows the movies of one TMDB collection as one type=movie_collection card; getMovieCollection lists a box set's movies, and getMovieCollectionGrouping says whether the acting profile browses a library grouped */
+      movie_collection_grouping?: boolean;
       /** @description People search accepts media_scope and filters credits by viewer access */
       people_media_scope?: boolean;
       /** @description Person reads accept prefetch=true for speculative reads that do not queue a provider refresh */
@@ -23817,6 +23881,8 @@ export interface components {
       manga_chapter_count?: number;
       /** Format: int64 */
       manga_volume_count?: number;
+      /** @description On a type=movie_collection card: the box set the card stands for. content_id stays the box set's first movie in the requested order */
+      movie_collection?: components["schemas"]["CatalogMovieCollectionCard"];
       networks?: string[];
       /** @example en */
       original_language?: string;
@@ -23885,7 +23951,7 @@ export interface components {
       /** @example Heat */
       title: string;
       /**
-       * @description movie, series, season, episode, audiobook, ebook, podcast, podcast_episode
+       * @description movie, series, season, episode, audiobook, ebook, podcast, podcast_episode; work or movie_collection on a grouped browse
        * @example movie
        */
       type: string;
@@ -24462,6 +24528,12 @@ export interface components {
        * @example en
        */
       metadata_language: string;
+      /**
+       * @description Whether the library's Browse shows the movies of one TMDB collection as one box set for profiles that have not chosen (ui.movie_collection_grouping)
+       * @example flat
+       * @enum {string}
+       */
+      movie_collection_grouping_default: "grouped" | "flat";
       /** @example Movies */
       name: string;
       /**
@@ -24631,6 +24703,12 @@ export interface components {
        * @example en
        */
       metadata_language?: string;
+      /**
+       * @description Whether Browse shows box sets for profiles that have not chosen; omitted means flat
+       * @example flat
+       * @enum {string}
+       */
+      movie_collection_grouping_default?: "grouped" | "flat";
       /** @example Movies */
       name: string;
       /**
@@ -24985,6 +25063,12 @@ export interface components {
        * @example en
        */
       metadata_language?: string;
+      /**
+       * @description Whether Browse shows box sets for profiles that have not chosen
+       * @example grouped
+       * @enum {string}
+       */
+      movie_collection_grouping_default?: "grouped" | "flat";
       /** @example Movies */
       name?: string;
       /**
@@ -25822,6 +25906,50 @@ export interface components {
        * @description RFC 3339 instant in UTC with millisecond precision
        */
       updated_at: string;
+    };
+    MovieCollection: {
+      /**
+       * @description The TMDB collection id
+       * @example 2344
+       */
+      id: string;
+      /** @description The collection's movies the viewer can see, in TMDB's collection order; movies TMDB no longer lists follow by release date */
+      items: components["schemas"]["CatalogItem"][];
+      /**
+       * Format: int64
+       * @description len(items)
+       * @example 3
+       */
+      member_count: number;
+      overview?: string;
+      /**
+       * Format: int64
+       * @description How many of the movies the viewer has watched
+       * @example 1
+       */
+      played_count: number;
+      /** @example The Matrix Collection */
+      title: string;
+    };
+    MovieCollectionGrouping: {
+      /**
+       * @description What to browse the library with: grouped means listCatalogItems with group=tmdb_collection
+       * @example grouped
+       * @enum {string}
+       */
+      effective: "grouped" | "flat";
+      /**
+       * @description The library's movie_collection_grouping_default, set by an administrator
+       * @example flat
+       * @enum {string}
+       */
+      library_default: "grouped" | "flat";
+      /**
+       * @description Where effective came from: the profile's ui.movie_collection_grouping value for this library, its value for every library, or the library default
+       * @example profile
+       * @enum {string}
+       */
+      source: "profile_library" | "profile" | "library_default";
     };
     MovieMatchQueueEntry: {
       /**
@@ -32331,6 +32459,8 @@ export interface components {
       manga_chapter_count?: number;
       /** Format: int64 */
       manga_volume_count?: number;
+      /** @description On a type=movie_collection card: the box set the card stands for. content_id stays the box set's first movie in the requested order */
+      movie_collection?: components["schemas"]["CatalogMovieCollectionCard"];
       networks?: string[];
       /** @example en */
       original_language?: string;
@@ -32399,7 +32529,7 @@ export interface components {
       /** @example Heat */
       title: string;
       /**
-       * @description movie, series, season, episode, audiobook, ebook, podcast, podcast_episode
+       * @description movie, series, season, episode, audiobook, ebook, podcast, podcast_episode; work or movie_collection on a grouped browse
        * @example movie
        */
       type: string;
@@ -32502,6 +32632,8 @@ export interface components {
       manga_chapter_count?: number;
       /** Format: int64 */
       manga_volume_count?: number;
+      /** @description On a type=movie_collection card: the box set the card stands for. content_id stays the box set's first movie in the requested order */
+      movie_collection?: components["schemas"]["CatalogMovieCollectionCard"];
       networks?: string[];
       /** @example en */
       original_language?: string;
@@ -32570,7 +32702,7 @@ export interface components {
       /** @example Heat */
       title: string;
       /**
-       * @description movie, series, season, episode, audiobook, ebook, podcast, podcast_episode
+       * @description movie, series, season, episode, audiobook, ebook, podcast, podcast_episode; work or movie_collection on a grouped browse
        * @example movie
        */
       type: string;
@@ -89390,8 +89522,8 @@ export interface operations {
         /** @description Opaque cursor from page.next_cursor */
         cursor?: string;
         genre?: string;
-        /** @description group=work collapses editions of one book into one card */
-        group?: "work";
+        /** @description group=work collapses editions of one book into one card. group=tmdb_collection, for source=query without q, shows the movies of one TMDB collection as one box-set card (type movie_collection); see getCatalogSearchCapabilities.movie_collection_grouping */
+        group?: "work" | "tmdb_collection";
         /** @description JSON array of structured rule groups; use POST catalog/query for larger queries */
         groups?: string;
         /** @description Artwork variant to presign */
@@ -91169,6 +91301,229 @@ export interface operations {
       };
       /** @description Unsupported Media Type */
       415: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Unprocessable Entity */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  getMovieCollectionGrouping: {
+    parameters: {
+      query: {
+        /** @description The movie library being browsed */
+        library_id: string;
+      };
+      header: {
+        /** @description The household profile acting for this request; it must belong to the authenticated account. */
+        "X-Profile-Id": string;
+        /** @description Verification proof for a PIN-locked profile, issued by POST /api/v2/profiles/{id}/verify-pin; required only when the declared profile is locked */
+        "X-Profile-Token"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MovieCollectionGrouping"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Not Acceptable */
+      406: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Unprocessable Entity */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  getMovieCollection: {
+    parameters: {
+      query?: {
+        /** @description Artwork variant to presign */
+        image_size?: "small" | "medium" | "large" | "original";
+        /** @description The library being browsed; absent includes every library the viewer can see */
+        library_id?: string;
+      };
+      header: {
+        /** @description The household profile acting for this request; it must belong to the authenticated account. */
+        "X-Profile-Id": string;
+        /** @description Verification proof for a PIN-locked profile, issued by POST /api/v2/profiles/{id}/verify-pin; required only when the declared profile is locked */
+        "X-Profile-Token"?: string;
+      };
+      path: {
+        /** @description TMDB collection id, as movie_collection.id on a card */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MovieCollection"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Not Acceptable */
+      406: {
         headers: {
           [name: string]: unknown;
         };

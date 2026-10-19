@@ -25,6 +25,8 @@ type fakeCatalog struct {
 	lastViewer         handlers.ItemViewer
 	lastGroup          bool
 	lastGroups         catalogpkg.AudiobookGroupsQuery
+	// lastMovieCollectionLibraries is what getMovieCollection passed on.
+	lastMovieCollectionLibraries []int
 }
 
 func (f *fakeCatalog) ContextAccessFilter(ctx context.Context, opts handlers.AccessFilterOptions) (catalogpkg.AccessFilter, error) {

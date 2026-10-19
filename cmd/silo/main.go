@@ -82,6 +82,7 @@ import (
 	"github.com/Silo-Server/silo-server/internal/mdblist"
 	"github.com/Silo-Server/silo-server/internal/metadata"
 	"github.com/Silo-Server/silo-server/internal/metadata/tmdb"
+	"github.com/Silo-Server/silo-server/internal/moviecollections"
 	"github.com/Silo-Server/silo-server/internal/netaccess"
 
 	// Built-in metadata providers self-register into the metadata package's
@@ -3255,6 +3256,7 @@ func main() {
 			taskMgr.Register(tasks.NewRefreshTrendingDiscoverTask(trendingRefresher))
 		}
 		taskMgr.Register(tasks.NewRefreshAnimeIDsTask(animeids.NewRefresher(deps.DB)))
+		taskMgr.Register(tasks.NewRefreshMovieCollectionsTask(moviecollections.NewRefresher(deps.DB, tmdb.NewClient(cfg.TMDBAPIKey, 40))))
 		if userCollectionScheduler != nil {
 			taskMgr.Register(tasks.NewSyncUserCollectionsTask(userCollectionScheduler))
 		}

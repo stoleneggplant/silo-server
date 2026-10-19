@@ -44,6 +44,8 @@ type Library struct {
 	ScanWarningCode            *string  `json:"scan_warning_code,omitempty" doc:"Outstanding scan warning (empty_root, dead_root, …); absent when none" example:"empty_root"`
 	ScanWarningMessage         *string  `json:"scan_warning_message,omitempty" doc:"Human-readable warning; absent when none"`
 	ScanWarningAt              *Instant `json:"scan_warning_at,omitempty" doc:"When the warning was raised; absent when none"`
+	// MovieCollectionGroupingDefault is "grouped" or "flat".
+	MovieCollectionGroupingDefault string `json:"movie_collection_grouping_default" enum:"grouped,flat" doc:"Whether the library's Browse shows the movies of one TMDB collection as one box set for profiles that have not chosen (ui.movie_collection_grouping)" example:"flat"`
 }
 
 // LibraryCreate is the createLibrary body.
@@ -57,6 +59,8 @@ type LibraryCreate struct {
 	TrickplayEnabled         bool     `json:"trickplay_enabled,omitempty" doc:"Generate seek-bar preview images; requires public asset storage" example:"false"`
 	TrailerKinds             []string `json:"trailer_kinds,omitempty" doc:"Remote video kinds to fetch; omitted applies the default (every provider kind), empty disables them" example:"[\"trailer\"]"`
 	RealtimeMonitoring       *bool    `json:"realtime_monitoring,omitempty" doc:"Scan automatically when files in the library's folders change; omitted means true. Takes effect only while the server-wide scanner.realtime_monitoring setting is on." example:"true"`
+	// MovieCollectionGroupingDefault is "grouped" or "flat".
+	MovieCollectionGroupingDefault string `json:"movie_collection_grouping_default,omitempty" enum:"grouped,flat" doc:"Whether Browse shows box sets for profiles that have not chosen; omitted means flat" example:"flat"`
 }
 
 // LibraryUpdate is the updateLibrary body; omitted members are unchanged
@@ -73,6 +77,8 @@ type LibraryUpdate struct {
 	TrickplayEnabled         *bool     `json:"trickplay_enabled,omitempty" nullable:"false" doc:"Generate seek-bar preview images; turning it off deletes the library's previews" example:"false"`
 	TrailerKinds             *[]string `json:"trailer_kinds,omitempty" nullable:"false" doc:"Replaces the allow-list; empty disables remote videos" example:"[\"trailer\"]"`
 	RealtimeMonitoring       *bool     `json:"realtime_monitoring,omitempty" nullable:"false" doc:"Scan automatically when files in the library's folders change. Takes effect only while the server-wide scanner.realtime_monitoring setting is on." example:"true"`
+	// MovieCollectionGroupingDefault is "grouped" or "flat".
+	MovieCollectionGroupingDefault *string `json:"movie_collection_grouping_default,omitempty" nullable:"false" enum:"grouped,flat" doc:"Whether Browse shows box sets for profiles that have not chosen" example:"grouped"`
 }
 
 // LibraryCreateInput is the createLibrary request.
@@ -1078,7 +1084,7 @@ func (reg *Registry) createLibrary(ctx context.Context, in *LibraryCreateInput) 
 	if p != nil {
 		return nil, p
 	}
-	view, err := svc.CreateLibrary(ctx, handlers.LibraryCreateRequest{
+	req := handlers.LibraryCreateRequest{
 		Paths:                    in.Body.Paths,
 		Type:                     in.Body.Type,
 		Name:                     in.Body.Name,
@@ -1088,7 +1094,9 @@ func (reg *Registry) createLibrary(ctx context.Context, in *LibraryCreateInput) 
 		TrailerKinds:             in.Body.TrailerKinds,
 		RealtimeMonitoring:       in.Body.RealtimeMonitoring,
 		TrickplayEnabled:         in.Body.TrickplayEnabled,
-	})
+	}
+	req.MovieCollectionGroupingDefault = in.Body.MovieCollectionGroupingDefault
+	view, err := svc.CreateLibrary(ctx, req)
 	if err != nil {
 		return nil, libraryProblem(err)
 	}
@@ -1112,7 +1120,7 @@ func (reg *Registry) updateLibrary(ctx context.Context, in *LibraryUpdateInput) 
 	if p := rejectNonNullableNulls(in.RawBody, nil); p != nil {
 		return nil, p
 	}
-	view, err := svc.UpdateLibrary(ctx, id, userID, handlers.LibraryUpdateRequest{
+	req := handlers.LibraryUpdateRequest{
 		Paths:                    in.Body.Paths,
 		Type:                     in.Body.Type,
 		Name:                     in.Body.Name,
@@ -1124,7 +1132,9 @@ func (reg *Registry) updateLibrary(ctx context.Context, in *LibraryUpdateInput) 
 		TrailerKinds:             in.Body.TrailerKinds,
 		RealtimeMonitoring:       in.Body.RealtimeMonitoring,
 		TrickplayEnabled:         in.Body.TrickplayEnabled,
-	})
+	}
+	req.MovieCollectionGroupingDefault = in.Body.MovieCollectionGroupingDefault
+	view, err := svc.UpdateLibrary(ctx, id, userID, req)
 	if err != nil {
 		return nil, libraryProblem(err)
 	}
@@ -1537,7 +1547,7 @@ func offsetPage[T any](cursors *Cursors, scope CursorScope, fetched, limit, offs
 }
 
 func libraryOf(v handlers.LibraryView) Library {
-	return Library{
+	lib := Library{
 		ID:                         IDFromInt(int64(v.ID)),
 		Paths:                      NonNil(v.Paths),
 		Type:                       v.Type,
@@ -1559,6 +1569,8 @@ func libraryOf(v handlers.LibraryView) Library {
 		ScanWarningMessage:         v.ScanWarningMessage,
 		ScanWarningAt:              instantPtr(v.ScanWarningAt),
 	}
+	lib.MovieCollectionGroupingDefault = v.MovieCollectionGroupingDefault
+	return lib
 }
 
 func libraryRootOf(v handlers.LibraryRootView) LibraryRoot {

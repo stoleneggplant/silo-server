@@ -105,6 +105,8 @@ type CreateFolderInput struct {
 	// RealtimeMonitoring is the library's real-time monitoring switch; nil
 	// means on.
 	RealtimeMonitoring *bool
+	// MovieCollectionGroupingDefault is "grouped" or "flat"; empty means flat.
+	MovieCollectionGroupingDefault string
 }
 
 // FolderReorderEntry carries a folder ID and its new sort position.
@@ -129,6 +131,9 @@ type UpdateFolderInput struct {
 	// RealtimeMonitoring is nil on the frozen /api/v1 update path, which
 	// never sets it, so the column stays unchanged there.
 	RealtimeMonitoring *bool
+	// MovieCollectionGroupingDefault is "grouped" or "flat"; nil leaves it
+	// unchanged, as the frozen /api/v1 update path always does.
+	MovieCollectionGroupingDefault *string
 }
 
 // FolderRepository provides CRUD operations for the media_folders table.
@@ -193,7 +198,7 @@ func normalizeTrailerKindsInput(kinds []string) []string {
 
 // folderColumns is the list of columns returned by all SELECT queries.
 // Kept in one place so scanFolder stays in sync.
-const folderColumns = `id, type, name, enabled, metadata_language, auto_translate_metadata, chapter_thumbnails_enabled, intro_detection_enabled, trickplay_enabled, realtime_monitoring, trailer_kinds, poster_path, last_scanned_at,
+const folderColumns = `id, type, name, enabled, metadata_language, auto_translate_metadata, chapter_thumbnails_enabled, intro_detection_enabled, trickplay_enabled, realtime_monitoring, movie_collection_grouping_default, trailer_kinds, poster_path, last_scanned_at,
 	scan_warning_code, scan_warning_message, scan_warning_at, allow_empty_cleanup_once, sort_order`
 
 // scanFolder scans a single row into a *models.MediaFolder.
@@ -211,6 +216,7 @@ func scanFolder(row pgx.Row) (*models.MediaFolder, error) {
 		&f.IntroDetectionEnabled,
 		&f.TrickplayEnabled,
 		&f.RealtimeMonitoring,
+		&f.MovieCollectionGroupingDefault,
 		&f.TrailerKinds,
 		&f.PosterPath,
 		&f.LastScannedAt,
@@ -247,6 +253,7 @@ func scanFolders(rows pgx.Rows) ([]*models.MediaFolder, error) {
 			&f.IntroDetectionEnabled,
 			&f.TrickplayEnabled,
 			&f.RealtimeMonitoring,
+			&f.MovieCollectionGroupingDefault,
 			&f.TrailerKinds,
 			&f.PosterPath,
 			&f.LastScannedAt,
@@ -328,8 +335,13 @@ func (r *FolderRepository) Create(ctx context.Context, input CreateFolderInput) 
 		realtimeMonitoring = *input.RealtimeMonitoring
 	}
 
-	query := `INSERT INTO media_folders (type, name, metadata_language, chapter_thumbnails_enabled, intro_detection_enabled, realtime_monitoring, trailer_kinds, trickplay_enabled, sort_order)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM media_folders))
+	movieCollectionGrouping := input.MovieCollectionGroupingDefault
+	if movieCollectionGrouping == "" {
+		movieCollectionGrouping = models.MovieCollectionGroupingFlat
+	}
+
+	query := `INSERT INTO media_folders (type, name, metadata_language, chapter_thumbnails_enabled, intro_detection_enabled, realtime_monitoring, trailer_kinds, trickplay_enabled, movie_collection_grouping_default, sort_order)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM media_folders))
 		RETURNING ` + folderColumns
 
 	row := tx.QueryRow(ctx, query,
@@ -341,6 +353,7 @@ func (r *FolderRepository) Create(ctx context.Context, input CreateFolderInput) 
 		realtimeMonitoring,
 		trailerKinds,
 		input.TrickplayEnabled,
+		movieCollectionGrouping,
 	)
 
 	folder, err := scanFolder(row)
@@ -530,6 +543,11 @@ func (r *FolderRepository) Update(ctx context.Context, id int, input UpdateFolde
 	if input.RealtimeMonitoring != nil {
 		setClauses = append(setClauses, fmt.Sprintf("realtime_monitoring = $%d", argIndex))
 		args = append(args, *input.RealtimeMonitoring)
+		argIndex++
+	}
+	if input.MovieCollectionGroupingDefault != nil {
+		setClauses = append(setClauses, fmt.Sprintf("movie_collection_grouping_default = $%d", argIndex))
+		args = append(args, *input.MovieCollectionGroupingDefault)
 		argIndex++
 	}
 	if len(setClauses) > 0 {

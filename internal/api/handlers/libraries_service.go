@@ -109,7 +109,7 @@ func (h *LibraryHandler) CreateLibrary(ctx context.Context, req LibraryCreateReq
 		return LibraryView{}, fieldError("trickplay_enabled", "Seek previews require configured artwork storage")
 	}
 
-	folder, err := h.folderRepo.Create(ctx, catalog.CreateFolderInput{
+	input := catalog.CreateFolderInput{
 		Paths:                    req.Paths,
 		Type:                     req.Type,
 		Name:                     req.Name,
@@ -119,7 +119,9 @@ func (h *LibraryHandler) CreateLibrary(ctx context.Context, req LibraryCreateReq
 		TrailerKinds:             req.TrailerKinds,
 		RealtimeMonitoring:       req.RealtimeMonitoring,
 		TrickplayEnabled:         req.TrickplayEnabled,
-	})
+	}
+	input.MovieCollectionGroupingDefault = req.MovieCollectionGroupingDefault
+	folder, err := h.folderRepo.Create(ctx, input)
 	if err != nil {
 		if errors.Is(err, catalog.ErrDuplicatePath) {
 			return LibraryView{}, apiError(http.StatusConflict, "conflict", "A library with this path already exists")
@@ -206,7 +208,7 @@ func (h *LibraryHandler) UpdateLibrary(ctx context.Context, id, userID int, req 
 		return LibraryView{}, apiError(http.StatusInternalServerError, "internal_error", "Failed to fetch library")
 	}
 
-	err = h.folderRepo.Update(ctx, id, catalog.UpdateFolderInput{
+	update := catalog.UpdateFolderInput{
 		Paths:                    req.Paths,
 		Type:                     req.Type,
 		Name:                     req.Name,
@@ -218,7 +220,9 @@ func (h *LibraryHandler) UpdateLibrary(ctx context.Context, id, userID int, req 
 		TrailerKinds:             req.TrailerKinds,
 		RealtimeMonitoring:       req.RealtimeMonitoring,
 		TrickplayEnabled:         req.TrickplayEnabled,
-	})
+	}
+	update.MovieCollectionGroupingDefault = req.MovieCollectionGroupingDefault
+	err = h.folderRepo.Update(ctx, id, update)
 	if err != nil {
 		if errors.Is(err, catalog.ErrFolderNotFound) {
 			return LibraryView{}, apiError(http.StatusNotFound, "not_found", "Library not found")

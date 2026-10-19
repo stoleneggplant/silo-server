@@ -9,7 +9,7 @@
 package settingskeys
 
 // Revision is the manifest revision these bindings were generated from.
-const Revision = 17
+const Revision = 18
 
 // Setting keys, one constant per definition.
 const (
@@ -131,6 +131,8 @@ const (
 	UiLibraryOrder = "ui.library_order"
 	// Remembered library view
 	UiLibraryPageState = "ui.library_page_state"
+	// Movie collections
+	UiMovieCollectionGrouping = "ui.movie_collection_grouping"
 	// Next up episodes
 	UiNextUpMode = "ui.next_up_mode"
 	// Remember library view
@@ -206,6 +208,7 @@ var Remote = []string{
 	UiHighContrast,
 	UiLibraryOrder,
 	UiLibraryPageState,
+	UiMovieCollectionGrouping,
 	UiNextUpMode,
 	UiRememberLibraryPageState,
 	UiSidebarPins,

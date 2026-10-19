@@ -98,6 +98,9 @@ func (h *CatalogHandler) Browse(ctx context.Context, v ItemViewer, req catalog.C
 		return CatalogBrowseView{}, catalogResolveError(ctx, err, false)
 	}
 	items := h.catalogItemResponses(ctx, v, result.Items, catalogSortMetricField(req, result), playableTargetLibraryIDs(req), v.Access)
+	if req.GroupByMovieCollection && req.SearchQuery == "" {
+		h.applyMovieCollectionCards(ctx, v, req, result.Items, items)
+	}
 	return catalogBrowseView(result, items), nil
 }
 

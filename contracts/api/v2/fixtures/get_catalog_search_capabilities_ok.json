@@ -1,5 +1,5 @@
 {
-  "revision": "2873457c7e965b203740e8b53915b6eaffd95059eac5ff3b1552a83dd23a34cc",
+  "revision": "41c64d4e0110e1f4f95928506fefb8d811bef6affe9ec458b1d8720cb91af23d",
   "state": "available",
   "allowed": true,
   "people_media_scope": true,
@@ -8,6 +8,7 @@
   "video_with_episodes_scope": true,
   "extended_query_rules": true,
   "letter_index": true,
+  "movie_collection_grouping": true,
   "provider": "meilisearch",
   "result_window_limit": 1000,
   "session_ttl_seconds": 900,

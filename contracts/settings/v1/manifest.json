@@ -1,6 +1,6 @@
 {
   "api_version": 1,
-  "revision": 17,
+  "revision": 18,
   "option_sets": {
     "playback_audio_languages": {
       "type": "language_tag",
@@ -1499,6 +1499,28 @@
       "description": "Use a title's logo artwork as its name on detail pages when one is available. When off, the name is always shown as text.",
       "recommended_control": "switch",
       "notes": "The profile scope deliberately resolves before profile_device: a profile value is the profile's \"apply to all devices\" choice and wins on every device, while with no profile value each device follows its own profile_device value. Clients show a second \"Apply to all devices\" switch whose state is the effective source being profile. Turning it on writes the current value at profile scope; while on, the main switch writes profile scope. Turning it off writes the current value at profile_device for the device doing it and then clears the profile value, so that device keeps its look and every other device returns to its own value or the default. Device values written earlier are kept while the profile value is set and apply again once it is cleared. Covers every surface that names a title with its logo (detail heroes, TV marquees); a client that turns it off also has no reason to prefetch logos."
+    },
+    {
+      "key": "ui.movie_collection_grouping",
+      "introduced_in": 18,
+      "persistence": "remote",
+      "allowed_scopes": ["profile", "profile_library"],
+      "resolution_order": ["profile_library", "profile", "default"],
+      "value_schema": {
+        "type": "enum",
+        "nullable": true,
+        "values": [
+          { "value": "grouped", "label": "Box sets" },
+          { "value": "flat", "label": "Individual movies" }
+        ]
+      },
+      "default_value": null,
+      "category": "catalog",
+      "label": "Movie collections",
+      "description": "Show the movies of one collection, such as a film series, as a single box set when browsing a movie library.",
+      "recommended_control": "select",
+      "unset_label": "Library default",
+      "notes": "Null means the library decides: a client that resolves no value uses the library's movie_collection_grouping_default, which an administrator sets and which is flat unless changed. The full precedence is therefore profile_library, then profile, then the library default. A client that resolves grouped browses that library with group=tmdb_collection (see getCatalogSearchCapabilities movie_collection_grouping); flat browses it without. Grouping only changes how a movie library's Browse presents its movies: search, Home sections, and recommendations still list individual movies."
     }
   ]
 }

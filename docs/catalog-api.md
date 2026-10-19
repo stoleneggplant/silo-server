@@ -163,6 +163,57 @@ sort as `effective_sort`; source order omits that field. `effective_sort` is
 reported the same way for `group=work` requests, and `sort_metrics` on each item
 describes the effective sort rather than the (possibly empty) requested one.
 
+## Movie box sets
+
+A movie library can show the movies of one TMDB collection (a franchise such as
+The Matrix Collection) as one box-set card. The
+`refresh_movie_collections` task records each movie's TMDB collection from TMDB
+in the background; browsing reads only those stored rows and never calls TMDB. A
+movie whose TMDB id changed since its last check counts as in no collection until
+the task rechecks it.
+
+`listCatalogItems` and `queryCatalogItems` accept `group=tmdb_collection` on the
+`query` source. Other sources reject it, and search requests (`q`) ignore it.
+Grouping happens before paging, so `total` and cursors count box sets once. The
+first movie of a collection in the requested order represents it, and its
+`content_id` stays the card's `content_id`. A card becomes a box set when at least
+two of the collection's movies are visible to the viewer in the browsed libraries,
+after maturity and library access are applied. Such a card has
+`type: "movie_collection"`, the collection's title and overview, the poster and
+backdrop of the collection's first movie, no `user_state` or play target, and:
+
+```json
+"movie_collection": { "id": "2344", "title": "The Matrix Collection", "member_count": 3, "played_count": 1 }
+```
+
+`member_count` and `played_count` cover the browsed libraries. A collection with
+one visible movie stays an ordinary movie card. The letter index does not support
+this grouping.
+
+`GET /api/v2/catalog/movie-collections/{id}` (`getMovieCollection`) returns the
+box set: `id`, `title`, `overview`, `member_count`, `played_count`, and `items`,
+the visible movies as catalog cards in TMDB collection order. Movies TMDB no
+longer lists follow by release date. `library_id` limits it to one library, as
+on the card's browse; without it every library the viewer can see counts. A
+collection with fewer than two visible movies answers `404`.
+
+Whether to browse grouped resolves per profile and library:
+
+1. the profile's `ui.movie_collection_grouping` value for the library
+   (`profile_library` scope), then
+2. its value for every library (`profile` scope), then
+3. the library's `movie_collection_grouping_default` (`grouped` or `flat`,
+   `flat` by default), set on `createLibrary` and `updateLibrary`.
+
+`ui.movie_collection_grouping` is `grouped`, `flat`, or `null` (unset, follow the
+library). `GET /api/v2/catalog/movie-collection-grouping?library_id=`
+(`getMovieCollectionGrouping`) returns `library_default`, `effective`, and
+`source` (`profile_library`, `profile`, or `library_default`). When `effective`
+is `grouped`, browse that library with `group=tmdb_collection`.
+
+Detect support from `movie_collection_grouping: true` in
+`getCatalogSearchCapabilities`.
+
 ## Feature detection
 
 `GET /api/v2/collections/capabilities` (`getCollectionCapabilities`) returns a

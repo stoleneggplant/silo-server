@@ -46,7 +46,7 @@ type CatalogBrowseInput struct {
 	YearMax       int      `query:"year_max" minimum:"0" example:"1999"`
 	ContentRating []string `query:"content_rating,explode" doc:"Repeat the key for several ratings" example:"R"`
 	Sort          string   `query:"sort" doc:"sort=field or -field; one term. Fields: title, year, release_date, added_at, rating, runtime, random, … (see the filters document); absent applies the source's saved or default order" example:"-release_date"`
-	Group         string   `query:"group" enum:"work" doc:"group=work collapses editions of one book into one card"`
+	Group         string   `query:"group" enum:"work,tmdb_collection" doc:"group=work collapses editions of one book into one card. group=tmdb_collection, for source=query without q, shows the movies of one TMDB collection as one box-set card (type movie_collection); see getCatalogSearchCapabilities.movie_collection_grouping"`
 	SkipTotal     bool     `query:"skip_total" doc:"true skips the exact count; the total is then an estimate"`
 	ImageSize     string   `query:"image_size" enum:"small,medium,large,original" doc:"Artwork variant to presign"`
 	LimitParam
@@ -114,7 +114,7 @@ type CatalogQuery struct {
 	Q            string              `json:"q,omitempty"`
 	NamePrefix   string              `json:"name_prefix,omitempty" doc:"Alphabetical jump: only titles whose sort title (or title, when none is set) starts here"`
 	Type         string              `json:"type,omitempty" doc:"Media scope, as the listCatalogItems type parameter"`
-	Group        string              `json:"group,omitempty" enum:"work"`
+	Group        string              `json:"group,omitempty" enum:"work,tmdb_collection" doc:"As the listCatalogItems group parameter"`
 	SkipTotal    bool                `json:"skip_total,omitzero"`
 	QueryLimit   int                 `json:"query_limit,omitzero" minimum:"0"`
 	Cursor       string              `json:"cursor,omitempty"`
@@ -601,6 +601,7 @@ const (
 
 func registerCatalogItems(reg *Registry) {
 	registerCatalogSearchCapabilities(reg)
+	registerMovieCollections(reg)
 	registerCatalogLetters(reg)
 	registerThemeSongs(reg)
 	cursors := NewCursors(reg.deps.CursorSecret)
@@ -1000,6 +1001,7 @@ func (reg *Registry) listCatalogItems(ctx context.Context, cursors *Cursors, in 
 	req.After = pos.After
 	req.ResolvedSort = pos.Sort
 	req.Limit = in.Limit
+	req.GroupByMovieCollection = in.Group == groupTMDBCollection
 	view, err := svc.Browse(ctx, viewer, req, in.Group == "work")
 	if err != nil {
 		return nil, catalogProblem(err, "query.source")

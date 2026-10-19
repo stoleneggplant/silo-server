@@ -1,8 +1,63 @@
 {
   "fixture_version": 1,
-  "manifest_revision": 17,
+  "manifest_revision": 18,
   "description": "Cross-platform conformance cases for settings resolution. Every case runs against the shipped manifest in this directory: definitions are referenced by key, never restated, so an expectation can only be satisfied by resolving the real contract. Each platform's resolver (Go in internal/settingsresolve, TypeScript in web/src/lib/settingsResolve.ts, Kotlin and Swift in the client repos) runs every case through a hand-written runner; a runner must fail on any fixture field it does not know, because schema drift in the fixture itself is drift. A case's constraint_bindings attach a constraint to a copy of a real definition so constraint semantics stay testable even while no shipped definition carries that constraint kind. In expected entries, constrained:true requires stored_value and constraint_kind to be present, and stored_value may be null to mean the authored value was JSON null.",
   "cases": [
+    {
+      "name": "movie_collection_grouping_library_beats_profile",
+      "description": "A profile's box-set choice for one library beats its choice for every library, and a value stored for another library takes no part.",
+      "keys": ["ui.movie_collection_grouping"],
+      "context": {
+        "profile_id": "p1",
+        "library_ids": [7]
+      },
+      "stored": [
+        {
+          "key": "ui.movie_collection_grouping",
+          "scope": "profile",
+          "profile_id": "p1",
+          "value": "grouped"
+        },
+        {
+          "key": "ui.movie_collection_grouping",
+          "scope": "profile_library",
+          "profile_id": "p1",
+          "library_id": 7,
+          "value": "flat"
+        },
+        {
+          "key": "ui.movie_collection_grouping",
+          "scope": "profile_library",
+          "profile_id": "p1",
+          "library_id": 8,
+          "value": "grouped"
+        }
+      ],
+      "expected": [
+        {
+          "key": "ui.movie_collection_grouping",
+          "value": "flat",
+          "source": "profile_library"
+        }
+      ]
+    },
+    {
+      "name": "movie_collection_grouping_unset_is_null",
+      "description": "With nothing stored the setting resolves to its null default, which tells the client to use the library's movie_collection_grouping_default.",
+      "keys": ["ui.movie_collection_grouping"],
+      "context": {
+        "profile_id": "p2",
+        "library_ids": [7]
+      },
+      "stored": [],
+      "expected": [
+        {
+          "key": "ui.movie_collection_grouping",
+          "value": null,
+          "source": "default"
+        }
+      ]
+    },
     {
       "name": "seek_intervals_p1",
       "description": "Video and audiobook intervals are independent profile values and follow the profile across devices. Other profiles receive defaults.",
